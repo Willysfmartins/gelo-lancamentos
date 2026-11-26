@@ -318,6 +318,43 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
   .fichas{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
   small.placa { display: block; font-size: 11px; letter-spacing: .04em; opacity: .7; }
+/* entrada e administração */
+body.trancado{overflow:hidden}
+.entrada{position:fixed;inset:0;z-index:100;background:var(--aco);display:grid;place-items:center;padding:20px}
+.entrada-cx{background:#fff;border-radius:var(--r-m);padding:28px 26px;width:min(400px,100%);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.entrada .marca{color:var(--aco);margin-bottom:18px}
+.entrada .marca small{color:var(--nevoa)}
+.entrada h1{font-family:var(--fc);font-size:30px;margin:0 0 10px}
+.entrada form{display:grid;gap:12px}
+.entrada .botao{width:100%;min-height:52px;margin-top:4px}
+.en-msg{color:var(--erro);font-weight:600;min-height:1.2em;margin:12px 0 0}
+.entrada p{color:var(--aco-2)}
+.usuario{display:inline-flex;align-items:center;gap:6px;color:#E3F0F7;font-weight:600}
+.usuario button{background:#1D4865;border:0;color:#E3F0F7;border-radius:99px;padding:5px 10px;font-weight:600;font-size:13px}
+.usuario button:hover{background:#2A5B7C}
+.grade.adm{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+@media (max-width:900px){.grade.adm{grid-template-columns:minmax(0,1fr)}}
+#ad-usuarios select{min-height:38px;border:1.5px solid var(--linha);border-radius:var(--r-s);padding:4px 8px;background:#fff;max-width:210px}
+#ad-usuarios tr.inativo td{color:var(--nevoa)}
+.ad-acoes{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;min-width:150px}
+.ad-acoes .botao.mini{margin-left:0}
+.botao.mini{min-height:36px;padding:0 10px;font-size:13px;margin-left:4px}
+.botao.perigo{border-color:var(--erro);color:var(--erro)}
+small.voce{background:var(--sinal-claro);border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700}
+.matriz td.c,.matriz th{text-align:center}
+.matriz td:first-child,.matriz th:first-child{text-align:left}
+.matriz input{width:22px;height:22px;accent-color:var(--ciano)}
+.matriz td.na{color:var(--linha)}
+label.check{display:flex;align-items:center;gap:10px;font-weight:600;flex-wrap:wrap}
+label.check input{width:22px;height:22px;accent-color:var(--ciano)}
+label.check small{flex-basis:100%;font-weight:400;color:var(--nevoa);margin-left:32px}
+.bloco-int{border-top:1px solid var(--linha);margin-top:14px;padding-top:14px}
+p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
+.dlg{border:0;border-radius:var(--r-m);padding:22px;width:min(380px,92vw)}
+.dlg::backdrop{background:rgba(16,50,75,.55)}
+.dlg h2{font-family:var(--fc);margin:0 0 12px}
+.dlg .campo{margin-bottom:10px}
+#ad-perfis .ficha small{display:block;font-weight:500;color:var(--nevoa)}
 </style>
 </head>
 <body>
@@ -330,9 +367,11 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
     <button data-tela="leituras">Leituras</button>
     <button data-tela="ajustes">Ajustes</button>
     <button data-tela="hoje">Resumo do dia</button>
+    <button data-tela="admin" hidden>Administração</button>
     <button data-tela="config">Configurar</button>
   </nav>
   <div class="estado">
+    <span id="usuario" class="usuario" hidden><span id="usuario-nome"></span><button type="button" id="usuario-senha" title="Trocar minha senha">Minha senha</button><button type="button" id="usuario-sair">Sair</button></span>
     <span id="pendentes" class="pilula pend" hidden><i></i><span></span></span>
     <span id="conexao" class="pilula"><i></i><span>Demonstração</span></span>
   </div>
@@ -566,6 +605,55 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
 </section>
 
 <!-- ============================ CONFIGURAR ============================ -->
+<section class="tela" id="t-admin" aria-labelledby="h-adm">
+  <h1 class="titulo" id="h-adm">Administração</h1>
+  <p class="sub">Usuários e senhas do site e o que cada perfil pode ver e fazer. A gravação na planilha continua pela conta Microsoft deste aparelho; na aba Site da planilha fica o nome do usuário que lançou. <span id="ad-origem"></span></p>
+  <div class="grade adm">
+    <div class="coluna">
+      <div class="bloco">
+        <div class="rot">Usuários</div>
+        <div class="rolagem"><table class="dados" id="ad-usuarios"></table></div>
+        <div class="bloco-int" id="ad-senha-box" hidden>
+          <div class="rot">Nova senha para <span id="ad-senha-quem"></span></div>
+          <div class="linha-campos">
+            <div class="campo"><label for="ad-senha1">Nova senha</label><input id="ad-senha1" type="password" autocomplete="new-password"></div>
+            <div class="campo"><label for="ad-senha2">Repita a senha</label><input id="ad-senha2" type="password" autocomplete="new-password"></div>
+          </div>
+          <div class="novo-acoes"><button type="button" class="botao primario" id="ad-senha-salvar">Trocar senha</button><button type="button" class="botao" id="ad-senha-cancelar">Cancelar</button></div>
+        </div>
+      </div>
+      <div class="bloco">
+        <div class="rot">Novo usuário</div>
+        <div class="linha-campos">
+          <div class="campo" style="flex:2 1 200px"><label for="ad-novo-nome">Nome</label><input id="ad-novo-nome" autocomplete="off" maxlength="60"></div>
+          <div class="campo" style="flex:1 1 160px"><label for="ad-novo-login">Usuário <span class="opc">para entrar</span></label><input id="ad-novo-login" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" placeholder="ex.: juvenal"></div>
+        </div>
+        <div class="linha-campos">
+          <div class="campo" style="flex:1 1 160px"><label for="ad-novo-senha">Senha <span class="opc">mínimo 6</span></label><input id="ad-novo-senha" type="password" autocomplete="new-password"></div>
+          <div class="campo" style="flex:2 1 200px"><label for="ad-novo-perfil">Perfil</label><select id="ad-novo-perfil"></select></div>
+        </div>
+        <div class="novo-acoes"><button type="button" class="botao primario" id="ad-novo-criar">Criar usuário</button></div>
+      </div>
+    </div>
+    <div class="coluna">
+      <div class="bloco">
+        <div class="rot">Perfis de acesso <span>escolha um para editar</span></div>
+        <div class="fichas largas" id="ad-perfis"></div>
+        <div class="novo-acoes"><button type="button" class="botao" id="ad-p-novo">+ Novo perfil</button></div>
+      </div>
+      <div class="bloco">
+        <div class="linha-campos">
+          <div class="campo" style="flex:2 1 220px"><label for="ad-p-nome">Nome do perfil</label><input id="ad-p-nome" maxlength="50"></div>
+          <label class="check" style="flex:1 1 200px"><input type="checkbox" id="ad-p-admin"> Administrador <small>tudo liberado, mais Administração e Configurar</small></label>
+        </div>
+        <div class="rolagem"><table class="dados matriz" id="ad-matriz"></table></div>
+        <p class="nota">Desfazer só aparece no último lançamento feito no próprio aparelho. Editar inclui o lápis do Resumo do dia.</p>
+        <div class="novo-acoes"><button type="button" class="botao primario" id="ad-p-salvar">Salvar perfil</button><button type="button" class="botao perigo" id="ad-p-excluir">Excluir perfil</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="tela" id="t-config" aria-labelledby="h-cfg">
   <h1 class="titulo" id="h-cfg">Configurar</h1>
   <p class="sub">No modo Demonstração, os lançamentos ficam só neste aparelho, para treinar. No modo Planilha, cada lançamento vira uma linha nas tabelas da planilha 6.x no OneDrive ou SharePoint.</p>
@@ -1047,7 +1135,7 @@ const Antigo = {
     const n = Math.max(Math.max(linhas.length, 1) + 1, (this.logN[arq.mes] || 0) + 1);
     this.logN[arq.mes] = n;
     const conta = Planilha.conta ? (Planilha.conta.name || Planilha.conta.username) : "";
-    const linha = ANT.LOG.map(c => ({"ID": reg.id, "Registrado em": new Date().toLocaleString("pt-BR"), "Usuário": conta}[c] ?? reg[c] ?? ""));
+    const linha = ANT.LOG.map(c => ({"ID": reg.id, "Registrado em": new Date().toLocaleString("pt-BR"), "Usuário": Acesso.sessao ? Acesso.sessao.nome : conta}[c] ?? reg[c] ?? ""));
     await this.escrever(arq, "Site", `A${n}:${colL(ANT.LOG.length)}${n}`, [linha]);
   },
   async marcarLog(dataISO, celulas, mud) {
@@ -1693,7 +1781,7 @@ async function gravar(t, obj, listaEl, descricao, {silencioso = false} = {}) {
     const r = await App.store.adicionar(t, obj);
     registrarUltimo(listaEl, t, r.indice, obj, descricao);
     if (!silencioso) toast(App.modo === "planilha" ? `Lançado na planilha: ${descricao}` : `Lançado (demonstração): ${descricao}`,
-      {acao: async () => { try { await App.store.desfazer(t, r.indice, obj); if (t === "tbExpedicao") Carga.anotar(obj, -1); if (t === "tbLeituras") LeitDia.carregar(); toast("Lançamento desfeito."); removerUltimo(listaEl, r.indice, t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); } }});
+      {acao: !pode(TELA_DA_LISTA[listaEl], "desfazer") ? null : async () => { try { await App.store.desfazer(t, r.indice, obj); if (t === "tbExpedicao") Carga.anotar(obj, -1); if (t === "tbLeituras") LeitDia.carregar(); toast("Lançamento desfeito."); removerUltimo(listaEl, r.indice, t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); } }});
     return true;
   } catch (e) {
     if (e.rede) { Fila.guardar(t, obj); obj.__pendente = true; toast("Sem internet: lançamento guardado neste aparelho e será enviado sozinho."); return true; }
@@ -1720,13 +1808,13 @@ function desenharUltimos(el) {
       const c = document.createElement("button"); c.type = "button"; c.className = "cam"; c.innerHTML = CAM; c.title = "Ver fotos";
       c.setAttribute("aria-label", "Ver fotos: " + u.desc); c.onclick = () => abrirGaleria(u.obj.Fotos, u.desc); acoes.appendChild(c);
     }
-    if (est) {
+    if (est && pode(TELA_DA_LISTA[el], "editar")) {
       const e = document.createElement("button"); e.type = "button"; e.className = "lapis"; e.innerHTML = LAPIS;
       e.title = "Editar"; e.setAttribute("aria-label", "Editar: " + u.desc); e.setAttribute("aria-pressed", est.editando === u);
       e.onclick = () => (est.editando === u ? cancelarEdicao(el) : editarUltimo(el, u));
       acoes.appendChild(e);
     }
-    if (k === 0) {
+    if (k === 0 && pode(TELA_DA_LISTA[el], "desfazer")) {
       const b = document.createElement("button"); b.type = "button"; b.textContent = "Desfazer";
       b.onclick = async () => { b.disabled = true; try { await App.store.desfazer(u.t, u.indice, u.obj); if (u.t === "tbExpedicao") Carga.anotar(u.obj, -1); if (u.t === "tbLeituras") LeitDia.carregar(); if (est && est.editando === u) cancelarEdicao(el); toast("Lançamento desfeito."); removerUltimo(el, u.indice, u.t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); b.disabled = false; } };
       acoes.appendChild(b);
@@ -1953,6 +2041,7 @@ function segurar(el, aoSegurar) {
 const MP = {nome: null, volta: null};
 function pessoaDe(nome) { return (App.cad.tbPessoas || []).find(p => p.Nome === nome); }
 function abrirMenuPessoa(nome, ancora) {
+  if (!pode("expedicao", "cadastros")) return;
   const p = pessoaDe(nome); if (!p) return;
   if (MP.nome === nome && !$("#menu-pessoa").hidden) return;
   MP.nome = nome; MP.volta = ancora || null;
@@ -2574,7 +2663,7 @@ async function desenharMaquinas(P) {
                  : `<tr><td class="sem">${esc(e.Equipamento)}</td><td class="sem">–</td><td class="n sem">–</td></tr>`; }).join("");
     });
     $("#h-maq").innerHTML = eqs.length ? html : `<tr><td class="vazio">Nenhum equipamento ativo no cadastro.</td></tr>`;
-    $$("#h-maq button.per-ed").forEach(b => b.onclick = () => editarLeituraDoResumo(MAQ.linhas[Number(b.dataset.r)]));
+    $$("#h-maq button.per-ed").forEach(b => { b.hidden = !pode("leituras", "editar"); b.onclick = () => editarLeituraDoResumo(MAQ.linhas[Number(b.dataset.r)]); });
     $("#h-maq-info").textContent = `${ligados} de ${eqs.length} com leitura${cruzados ? ` · ${cruzados} com horário cruzado (não conta)` : ""}`;
   } catch (e) { $("#h-maq-info").textContent = ""; $("#h-maq").innerHTML = `<tr><td class="vazio">Não deu para ler as máquinas: ${esc(e.message)}</td></tr>`; }
 }
@@ -2612,7 +2701,7 @@ async function desenharHoje() {
       doDia.map((r, k) => `<tr>${colData(r)}<td>${esc(r.Pessoa)}${r.Placa ? `<small class="placa">${esc(r.Placa)}</small>` : ""}</td><td>${tagTipo(r.Tipo)}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td>` +
         `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button>` : ""}</td></tr>`).join("")
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
-    $$("#h-lista button.lapis-claro").forEach(b => b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]));
+    $$("#h-lista button.lapis-claro").forEach(b => { b.hidden = !pode("expedicao", "editar"); b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]); });
     $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r)); });
     const mm = {};
     doDia.filter(r => RUINS.includes(r.Tipo)).forEach(r => { const k = r.Motivo || "Sem motivo"; (mm[k] ||= {r: 0, p: 0}); mm[k][r.Tipo === "Perda" ? "p" : "r"] += tot(r); });
@@ -2649,7 +2738,7 @@ async function desenharHoje() {
           `<td class="n">${calc(r.Parcial) != null ? fmt(calc(r.Parcial)) : "–"}</td><td class="n">${calc(r.Puxada) != null ? fmt(calc(r.Puxada)) : "–"}</td>` +
           `<td class="n">${p != null && q ? `${fmt(p)} <small style="color:var(--nevoa)">${fmt(p / q * 100, 1)}%</small>` : "–"}</td><td>${esc(r.Lote ?? "")}</td></tr>`; }).join("")
       : `<tr><td class="vazio">Sem produção lançada em ${P.rot}.</td></tr>`;
-    $$("#h-prod-lista button.lapis-claro").forEach(b => b.onclick = () => editarProducaoDoResumo(doPer[Number(b.dataset.pk)]));
+    $$("#h-prod-lista button.lapis-claro").forEach(b => { b.hidden = !pode("producao", "editar"); b.onclick = () => editarProducaoDoResumo(doPer[Number(b.dataset.pk)]); });
     $("#h-info").textContent = `${P.umDia ? "" : P.rot + " · "}${doDia.length} lançamento(s) · ${App.store.nome}`;
   } catch (e) { $("#h-info").textContent = ""; toast(e.message, {erro: true}); }
 }
@@ -2708,6 +2797,290 @@ function baixarCSV() {
 /* ======================================================================
    Início
    ====================================================================== */
+/* ======================================================================
+   Acesso: usuários e senhas do site (separado da conta Microsoft).
+   A conta Microsoft do aparelho (a do Caio) só grava na planilha; quem
+   lançou fica registrado pelo usuário do site.
+   Guarda em "Site/acesso.json" na pasta EXPEDIÇÃO E PRODUÇÃO GELO
+   (na demonstração, neste aparelho).
+   ====================================================================== */
+const TELAS_ACESSO = [
+  {id: "expedicao", nome: "Expedição", acoes: ["ver", "lancar", "editar", "desfazer", "cadastros"]},
+  {id: "producao", nome: "Produção", acoes: ["ver", "lancar", "editar", "desfazer"]},
+  {id: "embalagens", nome: "Embalagens", acoes: ["ver", "lancar", "desfazer"]},
+  {id: "leituras", nome: "Leituras", acoes: ["ver", "lancar", "editar", "desfazer"]},
+  {id: "ajustes", nome: "Ajustes", acoes: ["ver", "lancar", "desfazer"]},
+  {id: "hoje", nome: "Resumo do dia", acoes: ["ver"]},
+];
+const NOMES_ACOES = {ver: "Ver", lancar: "Lançar", editar: "Editar", desfazer: "Desfazer", cadastros: "Cadastrar e mover pessoas"};
+const permTudo = () => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, true]))]));
+const permCom = (telas, acoes) => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, telas.includes(t.id) && acoes.includes(a)]))]));
+const PERFIS_PADRAO = () => [
+  {id: "admin", nome: "Administrador", admin: true, perm: permTudo()},
+  {id: "supervisor", nome: "Supervisor (lança e edita)", admin: false,
+   perm: permCom(["expedicao", "producao", "embalagens", "leituras", "ajustes", "hoje"], ["ver", "lancar", "editar", "desfazer", "cadastros"])},
+  {id: "operador", nome: "Operador (só lança)", admin: false, perm: permCom(["expedicao", "producao", "embalagens", "leituras"], ["ver", "lancar"])},
+];
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const deb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const normLogin = v => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase().replace(/\s+/g, ".");
+
+const Acesso = {
+  dados: null, sessao: null,
+  async hash(senha, salt, iter = 150000) {
+    const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(senha), "PBKDF2", false, ["deriveBits"]);
+    return b64(await crypto.subtle.deriveBits({name: "PBKDF2", hash: "SHA-256", salt: deb64(salt), iterations: iter}, k, 256));
+  },
+  async novaSenha(senha) { const salt = b64(crypto.getRandomValues(new Uint8Array(16))); return {salt, iter: 150000, hash: await this.hash(senha, salt)}; },
+  /* onde fica o arquivo */
+  async caminho() {
+    if (App.store === Antigo) { await Antigo.abrir(); return `/drives/${Antigo.drive}/items/${Antigo.raiz}:/Site/acesso.json`; }
+    await Planilha.abrir(); return `/drives/${Planilha.drive}/items/${Planilha.pasta}:/Site/acesso.json`;
+  },
+  remoto() { return App.modo === "planilha"; },
+  async carregar() {
+    let d = null;
+    if (!this.remoto()) d = LS.get("gm_acesso", null);
+    else {
+      try {
+        const it = await Planilha.req("GET", `${await this.caminho()}?$select=id,@microsoft.graph.downloadUrl`, undefined, {sessao: false});
+        const r = await fetch(it["@microsoft.graph.downloadUrl"], {cache: "no-store"});
+        d = await r.json();
+      } catch (e) {
+        if (e.status === 404) d = null;
+        else { d = LS.get("gm_acesso_cache", null); if (!d) throw e; d.__offline = true; }
+      }
+      if (d && !d.__offline) LS.set("gm_acesso_cache", d);
+    }
+    this.dados = d || {versao: 1, perfis: PERFIS_PADRAO(), usuarios: []};
+    if (!this.dados.perfis || !this.dados.perfis.length) this.dados.perfis = PERFIS_PADRAO();
+    return this.dados;
+  },
+  async salvar(mudar) {
+    // relê antes de gravar (outro administrador pode ter mexido) e aplica a mudança por cima
+    await this.carregar();
+    if (this.dados.__offline) throw new Error("Sem internet: não dá para mudar usuários agora.");
+    mudar(this.dados);
+    const d = {...this.dados, alterado: new Date().toISOString(), alteradoPor: this.sessao ? this.sessao.login : ""};
+    delete d.__offline;
+    if (!this.remoto()) LS.set("gm_acesso", d);
+    else {
+      await Planilha.reqArquivo(`${await this.caminho()}:/content`, new Blob([JSON.stringify(d, null, 1)], {type: "application/json"}));
+      LS.set("gm_acesso_cache", d);
+    }
+    this.dados = d;
+  },
+  perfil(id) { return (this.dados && this.dados.perfis || []).find(p => p.id === id) || null; },
+  usuario(login) { return (this.dados && this.dados.usuarios || []).find(u => u.login === login) || null; },
+  admin() { const p = this.sessao && this.perfil(this.sessao.perfil); return !!(p && p.admin); },
+  pode(tela, acao) {
+    const p = this.sessao && this.perfil(this.sessao.perfil); if (!p) return false;
+    if (p.admin) return true;
+    return !!(p.perm && p.perm[tela] && p.perm[tela][acao]);
+  },
+  async entrar(login, senha) {
+    const u = this.usuario(normLogin(login));
+    if (!u || (await this.hash(senha, u.salt, u.iter)) !== u.hash) throw new Error("Usuário ou senha não conferem.");
+    if (u.ativo === false) throw new Error("Este usuário está desativado. Fale com o administrador.");
+    this.sessao = {login: u.login, nome: u.nome, perfil: u.perfil, ate: Date.now() + 12 * 3600e3};
+    LS.set("gm_sessao", this.sessao);
+  },
+  restaurar() {
+    const s = LS.get("gm_sessao", null), u = s && this.usuario(s.login);
+    if (s && u && u.ativo !== false && s.ate > Date.now()) { this.sessao = {...s, nome: u.nome, perfil: u.perfil}; return true; }
+    LS.set("gm_sessao", null); this.sessao = null; return false;
+  },
+  sair() { LS.set("gm_sessao", null); this.sessao = null; location.reload(); },
+};
+const pode = (tela, acao) => Acesso.pode(tela, acao);
+const TELA_DA_LISTA = {"#x-ultimos": "expedicao", "#p-ultimos": "producao", "#e-ultimos": "embalagens", "#l-ultimos": "leituras", "#a-ultimos": "ajustes"};
+
+/* ---------- tela de entrada ---------- */
+function mostrarEntrada(modo, msg = "") {
+  const t = $("#entrada"); t.hidden = false; document.body.classList.add("trancado");
+  $("#en-msg").textContent = msg;
+  $("#en-ms").hidden = modo !== "microsoft"; $("#en-form").hidden = modo === "microsoft";
+  $("#en-primeiro").hidden = modo !== "primeiro"; $("#en-nome-campo").hidden = modo !== "primeiro"; $("#en-senha2-campo").hidden = modo !== "primeiro";
+  $("#en-tit").textContent = modo === "primeiro" ? "Primeiro acesso" : modo === "microsoft" ? "Ligar este aparelho" : "Entrar";
+  $("#en-botao").textContent = modo === "primeiro" ? "Criar administrador e entrar" : "Entrar";
+  t.dataset.modo = modo;
+  setTimeout(() => { const f = modo === "primeiro" ? $("#en-nome") : $("#en-login"); if (f && !f.closest("[hidden]")) f.focus(); }, 50);
+}
+function esconderEntrada() { $("#entrada").hidden = true; document.body.classList.remove("trancado"); }
+let entradaOk = null;
+async function enviarEntrada(e) {
+  e.preventDefault();
+  const modo = $("#entrada").dataset.modo, btn = $("#en-botao"), login = $("#en-login").value, senha = $("#en-senha").value;
+  btn.disabled = true; $("#en-msg").textContent = "";
+  try {
+    if (modo === "primeiro") {
+      const nome = $("#en-nome").value.trim(), l = normLogin(login);
+      if (!nome || !l) throw new Error("Preencha o nome e o usuário.");
+      if (senha.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
+      if (senha !== $("#en-senha2").value) throw new Error("As duas senhas estão diferentes.");
+      const s = await Acesso.novaSenha(senha);
+      await Acesso.salvar(d => { if (d.usuarios.length) throw new Error("Outro aparelho já criou o administrador. Recarregue a página."); d.usuarios.push({login: l, nome, perfil: "admin", ativo: true, ...s, criado: new Date().toISOString()}); });
+    }
+    await Acesso.entrar(login, senha);
+    $("#en-senha").value = ""; $("#en-senha2").value = "";
+    esconderEntrada(); aplicarAcesso(); if (entradaOk) { const f = entradaOk; entradaOk = null; f(); }
+  } catch (err) { $("#en-msg").textContent = err.rede ? "Sem internet. Tente de novo quando voltar a conexão." : err.message; }
+  finally { btn.disabled = false; }
+}
+/* Garante um usuário do site antes de usar. Resolve quando alguém entrou. */
+async function exigirEntrada() {
+  if (App.modo === "planilha" && !Planilha.conta) {
+    mostrarEntrada("microsoft", "Este aparelho ainda não está ligado à conta Microsoft da fábrica. O administrador liga uma vez e depois cada um entra com seu usuário.");
+    return new Promise(() => {});  // o botão leva para o login da Microsoft e a página volta recarregada
+  }
+  try { await Acesso.carregar(); }
+  catch (e) { mostrarEntrada("entrar", "Não deu para ler os usuários: " + e.message); return new Promise(r => entradaOk = r); }
+  if (!Acesso.dados.usuarios.length) { mostrarEntrada("primeiro"); return new Promise(r => entradaOk = r); }
+  if (Acesso.restaurar()) { aplicarAcesso(); return; }
+  mostrarEntrada("entrar"); return new Promise(r => entradaOk = r);
+}
+
+/* ---------- aplica as permissões na tela ---------- */
+function aplicarAcesso() {
+  const adm = Acesso.admin();
+  $$("nav.abas button").forEach(b => {
+    const t = b.dataset.tela;
+    b.hidden = t === "config" || t === "admin" ? !adm : !pode(t, "ver");
+  });
+  $("#usuario-nome").textContent = Acesso.sessao ? Acesso.sessao.nome.split(" ")[0] : "";
+  $("#usuario-nome").title = Acesso.sessao ? `${Acesso.sessao.nome} (${Acesso.sessao.login})` : "";
+  $("#usuario").hidden = !Acesso.sessao;
+  $("#x-novo-btn").hidden = !pode("expedicao", "cadastros");
+  document.body.classList.toggle("so-ver-expedicao", !pode("expedicao", "lancar"));
+  Object.keys(ultimos).forEach(el => desenharUltimos(el));
+  ["atualizarX", "atualizarP", "atualizarE", "atualizarL", "atualizarA"].forEach(f => { try { window[f](); } catch {} });
+  const atual = LS.get("gm_tela", "expedicao");
+  if (!telaPermitida(atual)) { const p = primeiraTela(); if (p) irPara(p); }
+}
+const telaPermitida = t => t === "config" || t === "admin" ? Acesso.admin() : pode(t, "ver");
+const primeiraTela = () => [...TELAS_ACESSO.map(t => t.id), "admin", "config"].find(telaPermitida) || null;
+/* trava do botão Lançar/Salvar de cada tela */
+function travaLancar(tela, editando) {
+  if (!Acesso.sessao) return "Entre com seu usuário.";
+  if (editando) return pode(tela, "editar") ? "" : "Seu usuário não pode editar nesta tela.";
+  return pode(tela, "lancar") ? "" : "Seu usuário só pode consultar esta tela.";
+}
+
+/* ---------- painel do administrador ---------- */
+const ADM = {perfilAberto: null};
+function desenharAdmin() {
+  if (!Acesso.admin()) return;
+  const d = Acesso.dados, perfis = d.perfis, nomePerfil = id => (Acesso.perfil(id) || {}).nome || id;
+  $("#ad-origem").textContent = App.modo === "planilha" ? "Guardado na pasta EXPEDIÇÃO E PRODUÇÃO GELO, em Site/acesso.json. Vale para todos os aparelhos." : "Modo demonstração: os usuários ficam só neste aparelho.";
+  $("#ad-usuarios").innerHTML = `<tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th class="acao"><span class="sr">Ações</span></th></tr>` +
+    d.usuarios.map((u, k) => `<tr${u.ativo === false ? ' class="inativo"' : ""}><td>${esc(u.nome)}${Acesso.sessao && u.login === Acesso.sessao.login ? ' <small class="voce">você</small>' : ""}</td><td>${esc(u.login)}</td>
+      <td><select data-k="${k}" class="ad-perfil" aria-label="Perfil de ${esc(u.nome)}">${perfis.map(p => `<option value="${esc(p.id)}"${p.id === u.perfil ? " selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></td>
+      <td>${u.ativo === false ? "Desativado" : "Ativo"}</td>
+      <td class="acao ad-acoes"><button type="button" class="botao mini" data-k="${k}" data-a="senha">Nova senha</button><button type="button" class="botao mini" data-k="${k}" data-a="ativo">${u.ativo === false ? "Ativar" : "Desativar"}</button><button type="button" class="botao mini perigo" data-k="${k}" data-a="excluir">Excluir</button></td></tr>`).join("");
+  $("#ad-novo-perfil").innerHTML = perfis.map(p => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");
+  $$("#ad-usuarios select.ad-perfil").forEach(s => s.onchange = () => mudarUsuario(Number(s.dataset.k), u => { u.perfil = s.value; }, `Perfil de ${d.usuarios[Number(s.dataset.k)].nome} mudou para ${nomePerfil(s.value)}.`));
+  $$("#ad-usuarios button").forEach(b => b.onclick = () => acaoUsuario(Number(b.dataset.k), b.dataset.a, b));
+  // perfis
+  if (!ADM.perfilAberto || !Acesso.perfil(ADM.perfilAberto)) ADM.perfilAberto = perfis[0].id;
+  $("#ad-perfis").innerHTML = perfis.map(p => `<button type="button" class="ficha${p.id === ADM.perfilAberto ? " marcada" : ""}" data-p="${esc(p.id)}" aria-pressed="${p.id === ADM.perfilAberto}">${esc(p.nome)}<small>${d.usuarios.filter(u => u.perfil === p.id).length} usuário(s)${p.admin ? " · administrador" : ""}</small></button>`).join("");
+  $$("#ad-perfis button").forEach(b => b.onclick = () => { ADM.perfilAberto = b.dataset.p; desenharAdmin(); });
+  const p = Acesso.perfil(ADM.perfilAberto);
+  $("#ad-p-nome").value = p.nome; $("#ad-p-admin").checked = !!p.admin;
+  const todas = ["ver", "lancar", "editar", "desfazer", "cadastros"];
+  $("#ad-matriz").innerHTML = `<tr><th>Tela</th>${todas.map(a => `<th>${NOMES_ACOES[a]}</th>`).join("")}</tr>` +
+    TELAS_ACESSO.map(t => `<tr><td>${t.nome}</td>${todas.map(a => t.acoes.includes(a)
+      ? `<td class="c"><input type="checkbox" data-t="${t.id}" data-a="${a}" aria-label="${t.nome}: ${NOMES_ACOES[a]}"${p.admin || (p.perm[t.id] && p.perm[t.id][a]) ? " checked" : ""}${p.admin ? " disabled" : ""}></td>` : `<td class="c na">–</td>`).join("")}</tr>`).join("");
+  $$("#ad-matriz input").forEach(i => i.onchange = () => {
+    // sem "ver" não tem o resto; marcar qualquer ação marca "ver"
+    const t = i.dataset.t, a = i.dataset.a, linha = $$(`#ad-matriz input[data-t="${t}"]`);
+    if (a === "ver" && !i.checked) linha.forEach(x => x.checked = false);
+    if (a !== "ver" && i.checked) linha.find(x => x.dataset.a === "ver").checked = true;
+  });
+  $("#ad-p-excluir").disabled = p.id === "admin" || d.usuarios.some(u => u.perfil === p.id);
+}
+async function mudarUsuario(k, f, msg) {
+  const login = Acesso.dados.usuarios[k].login;
+  try {
+    await Acesso.salvar(d => {
+      const u = d.usuarios.find(x => x.login === login); if (!u) throw new Error("Esse usuário não existe mais.");
+      f(u, d);
+      const admins = d.usuarios.filter(x => x.ativo !== false && (d.perfis.find(p => p.id === x.perfil) || {}).admin);
+      if (!admins.length) throw new Error("Precisa ficar pelo menos um administrador ativo.");
+    });
+    if (Acesso.sessao && login === Acesso.sessao.login) { Acesso.restaurar(); aplicarAcesso(); }
+    toast(msg);
+  } catch (e) { toast(e.message, {erro: true}); }
+  desenharAdmin();
+}
+async function acaoUsuario(k, a, btn) {
+  const u = Acesso.dados.usuarios[k];
+  if (a === "ativo") return mudarUsuario(k, x => { x.ativo = x.ativo === false; }, `${u.nome} ${u.ativo === false ? "ativado" : "desativado"}.`);
+  if (a === "senha") { ADM.senhaDe = u.login; $("#ad-senha-quem").textContent = u.nome; $("#ad-senha-box").hidden = false; $("#ad-senha1").value = $("#ad-senha2").value = ""; $("#ad-senha1").focus(); return; }
+  if (a === "excluir") {
+    if (Acesso.sessao && u.login === Acesso.sessao.login) return toast("Você não pode excluir o seu próprio usuário.", {erro: true});
+    if (!btn.dataset.conf) { btn.dataset.conf = "1"; btn.textContent = "Confirmar"; setTimeout(() => { delete btn.dataset.conf; btn.textContent = "Excluir"; }, 4000); return; }
+    try {
+      await Acesso.salvar(d => { d.usuarios = d.usuarios.filter(x => x.login !== u.login);
+        if (!d.usuarios.some(x => x.ativo !== false && (d.perfis.find(p => p.id === x.perfil) || {}).admin)) throw new Error("Precisa ficar pelo menos um administrador ativo."); });
+      toast(`${u.nome} excluído.`);
+    } catch (e) { toast(e.message, {erro: true}); }
+    desenharAdmin();
+  }
+}
+async function salvarSenhaAdmin() {
+  const s1 = $("#ad-senha1").value, s2 = $("#ad-senha2").value;
+  if (s1.length < 6) return toast("A senha precisa ter pelo menos 6 caracteres.", {erro: true});
+  if (s1 !== s2) return toast("As duas senhas estão diferentes.", {erro: true});
+  const s = await Acesso.novaSenha(s1), login = ADM.senhaDe;
+  try { await Acesso.salvar(d => { const u = d.usuarios.find(x => x.login === login); if (!u) throw new Error("Esse usuário não existe mais."); Object.assign(u, s); });
+    $("#ad-senha-box").hidden = true; toast("Senha trocada."); } catch (e) { toast(e.message, {erro: true}); }
+}
+async function criarUsuario() {
+  const nome = $("#ad-novo-nome").value.trim(), login = normLogin($("#ad-novo-login").value), s1 = $("#ad-novo-senha").value, perfil = $("#ad-novo-perfil").value;
+  if (!nome || !login) return toast("Preencha o nome e o usuário.", {erro: true});
+  if (!/^[a-z0-9._-]+$/.test(login)) return toast("O usuário só pode ter letras sem acento, números, ponto e traço.", {erro: true});
+  if (s1.length < 6) return toast("A senha precisa ter pelo menos 6 caracteres.", {erro: true});
+  const s = await Acesso.novaSenha(s1);
+  try {
+    await Acesso.salvar(d => { if (d.usuarios.some(u => u.login === login)) throw new Error(`Já existe o usuário ${login}.`); d.usuarios.push({login, nome, perfil, ativo: true, ...s, criado: new Date().toISOString()}); });
+    ["#ad-novo-nome", "#ad-novo-login", "#ad-novo-senha"].forEach(x => $(x).value = ""); toast(`Usuário ${login} criado.`);
+  } catch (e) { toast(e.message, {erro: true}); }
+  desenharAdmin();
+}
+async function salvarPerfil() {
+  const id = ADM.perfilAberto, nome = $("#ad-p-nome").value.trim(), admin = $("#ad-p-admin").checked;
+  if (!nome) return toast("Dê um nome ao perfil.", {erro: true});
+  const perm = {}; TELAS_ACESSO.forEach(t => { perm[t.id] = {}; t.acoes.forEach(a => { const i = $(`#ad-matriz input[data-t="${t.id}"][data-a="${a}"]`); perm[t.id][a] = admin || !!(i && i.checked); }); });
+  try {
+    await Acesso.salvar(d => { const p = d.perfis.find(x => x.id === id); if (!p) throw new Error("Esse perfil não existe mais.");
+      if (id === "admin" && !admin) throw new Error("O perfil Administrador continua sendo administrador.");
+      Object.assign(p, {nome, admin, perm}); });
+    Acesso.restaurar(); aplicarAcesso(); toast(`Perfil "${nome}" salvo.`);
+  } catch (e) { toast(e.message, {erro: true}); }
+  desenharAdmin();
+}
+async function novoPerfil() {
+  const id = "p" + Date.now().toString(36);
+  try { await Acesso.salvar(d => d.perfis.push({id, nome: "Novo perfil", admin: false, perm: permCom([], [])})); ADM.perfilAberto = id; } catch (e) { toast(e.message, {erro: true}); }
+  desenharAdmin(); $("#ad-p-nome").select();
+}
+async function excluirPerfil() {
+  const id = ADM.perfilAberto;
+  try { await Acesso.salvar(d => { if (d.usuarios.some(u => u.perfil === id)) throw new Error("Tem usuários neste perfil. Mude o perfil deles antes."); d.perfis = d.perfis.filter(p => p.id !== id); });
+    ADM.perfilAberto = null; toast("Perfil excluído."); } catch (e) { toast(e.message, {erro: true}); }
+  desenharAdmin();
+}
+async function trocarMinhaSenha() {
+  const atual = $("#mi-atual").value, s1 = $("#mi-nova").value, s2 = $("#mi-nova2").value, login = Acesso.sessao.login, u = Acesso.usuario(login);
+  if (!u || (await Acesso.hash(atual, u.salt, u.iter)) !== u.hash) return toast("A senha atual não confere.", {erro: true});
+  if (s1.length < 6) return toast("A nova senha precisa ter pelo menos 6 caracteres.", {erro: true});
+  if (s1 !== s2) return toast("As duas senhas novas estão diferentes.", {erro: true});
+  const s = await Acesso.novaSenha(s1);
+  try { await Acesso.salvar(d => Object.assign(d.usuarios.find(x => x.login === login), s)); fecharMinhaSenha(); toast("Sua senha foi trocada."); } catch (e) { toast(e.message, {erro: true}); }
+}
+function abrirMinhaSenha() { const d = $("#minha-senha"); ["#mi-atual", "#mi-nova", "#mi-nova2"].forEach(x => $(x).value = ""); try { d.showModal(); } catch { d.setAttribute("open", ""); } $("#mi-atual").focus(); }
+function fecharMinhaSenha() { const d = $("#minha-senha"); try { d.close(); } catch { d.removeAttribute("open"); } }
+
 function montarTudo() { montarExpedicao(); montarProducao(); montarEmbalagens(); montarLeituras(); montarAjustes(); }
 async function recarregar() {
   try {
@@ -2732,12 +3105,14 @@ setInterval(async () => {
   } catch {} finally { ATUALIZANDO = false; }
 }, 30000);
 function irPara(tela) {
+  if (Acesso.sessao && !telaPermitida(tela)) { const p = primeiraTela(); if (!p || p === tela) return; tela = p; }
   if (tela !== "hoje") Antigo.periodo = null;
   $$("nav.abas button").forEach(b => { if (b.dataset.tela === tela) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
   $$(".tela").forEach(s => s.classList.toggle("ativa", s.id === "t-" + tela));
   if (tela === "hoje") desenharHoje();
   if (tela === "expedicao") Carga.carregar($("#x-data").value, true);
   if (tela === "leituras") LeitDia.carregar();
+  if (tela === "admin") Acesso.carregar().then(desenharAdmin).catch(e => toast(e.message, {erro: true}));
   LS.set("gm_tela", tela); window.scrollTo(0, 0);
 }
 document.addEventListener("DOMContentLoaded", async () => {
@@ -2815,10 +3190,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     const salvar = $(cfg[2]).classList.contains("salvar"); $("#b-lancar").textContent = salvar ? "Salvar" : "Lançar"; $("#b-lancar").classList.toggle("salvar", salvar);
   }, 250);
   if (App.modo !== "planilha") semearDemo();
+  // trava de cada tela conforme o usuário (depois de cada atualização da tela)
+  [["atualizarX", "expedicao", "#x-lancar", "#x-faltando", () => X.editando], ["atualizarP", "producao", "#p-lancar", "#p-faltando", () => P.editando],
+   ["atualizarE", "embalagens", "#e-lancar", "#e-faltando", () => null], ["atualizarL", "leituras", "#l-lancar", "#l-faltando", () => L.editando],
+   ["atualizarA", "ajustes", "#a-lancar", "#a-faltando", () => null]].forEach(([fn, tela, btn, falta, ed]) => {
+    const orig = window[fn];
+    window[fn] = function (...a) {
+      const r = orig.apply(this, a);
+      const tv = travaLancar(tela, !!ed());
+      if (tv) { $(btn).disabled = true; $(falta).textContent = tv; }
+      return r;
+    };
+  });
+  $("#en-form").addEventListener("submit", enviarEntrada);
+  $("#en-ms-botao").onclick = () => Planilha.entrar().catch(e => { $("#en-msg").textContent = e.message; });
+  $("#usuario-sair").onclick = () => Acesso.sair();
+  $("#usuario-senha").onclick = abrirMinhaSenha;
+  $("#mi-salvar").onclick = trocarMinhaSenha; $("#mi-cancelar").onclick = fecharMinhaSenha;
+  $("#ad-novo-criar").onclick = criarUsuario;
+  $("#ad-senha-salvar").onclick = salvarSenhaAdmin; $("#ad-senha-cancelar").onclick = () => { $("#ad-senha-box").hidden = true; };
+  $("#ad-p-salvar").onclick = salvarPerfil; $("#ad-p-novo").onclick = novoPerfil; $("#ad-p-excluir").onclick = excluirPerfil;
+  $("#ad-p-admin").onchange = e => $$("#ad-matriz input").forEach(i => { i.disabled = e.target.checked; if (e.target.checked) i.checked = true; });
+  $$("nav.abas button").forEach(b => b.hidden = true);
   await recarregar();
+  await exigirEntrada();
   if (App.modo !== "planilha") $("#h-data").value = $("#h-ate").value = ultimoDiaDemo();
-  const t = LS.get("gm_tela", "expedicao"); if ($("#t-" + t)) irPara(t);
+  const t = LS.get("gm_tela", "expedicao"); if ($("#t-" + t)) irPara(telaPermitida(t) ? t : primeiraTela());
 });
 </script>
+<div id="entrada" class="entrada" hidden>
+  <div class="entrada-cx">
+    <div class="marca">Gelo Minerale<small>Lançamentos da fábrica</small></div>
+    <h1 id="en-tit">Entrar</h1>
+    <p id="en-primeiro" hidden>Este é o primeiro acesso. O usuário criado agora será o administrador e poderá cadastrar os outros.</p>
+    <form id="en-form" autocomplete="on">
+      <div class="campo" id="en-nome-campo" hidden><label for="en-nome">Seu nome</label><input id="en-nome" autocomplete="name" maxlength="60"></div>
+      <div class="campo"><label for="en-login">Usuário</label><input id="en-login" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="40"></div>
+      <div class="campo"><label for="en-senha">Senha</label><input id="en-senha" type="password" autocomplete="current-password"></div>
+      <div class="campo" id="en-senha2-campo" hidden><label for="en-senha2">Repita a senha</label><input id="en-senha2" type="password" autocomplete="new-password"></div>
+      <button type="submit" class="botao primario" id="en-botao">Entrar</button>
+    </form>
+    <div id="en-ms" hidden><button type="button" class="botao primario" id="en-ms-botao">Ligar com a conta Microsoft da fábrica</button></div>
+    <p class="en-msg" id="en-msg" role="alert"></p>
+  </div>
+</div>
+<dialog id="minha-senha" class="dlg" aria-labelledby="mi-tit">
+  <h2 id="mi-tit">Trocar minha senha</h2>
+  <div class="campo"><label for="mi-atual">Senha atual</label><input id="mi-atual" type="password" autocomplete="current-password"></div>
+  <div class="campo"><label for="mi-nova">Nova senha</label><input id="mi-nova" type="password" autocomplete="new-password"></div>
+  <div class="campo"><label for="mi-nova2">Repita a nova senha</label><input id="mi-nova2" type="password" autocomplete="new-password"></div>
+  <div class="novo-acoes"><button type="button" class="botao primario" id="mi-salvar">Trocar senha</button><button type="button" class="botao" id="mi-cancelar">Cancelar</button></div>
+</dialog>
 </body>
 </html>
