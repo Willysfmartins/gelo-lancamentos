@@ -350,6 +350,10 @@ label.check input{width:22px;height:22px;accent-color:var(--ciano)}
 label.check small{flex-basis:100%;font-weight:400;color:var(--nevoa);margin-left:32px}
 .bloco-int{border-top:1px solid var(--linha);margin-top:14px;padding-top:14px}
 p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
+.passos-ms{padding-left:20px;line-height:1.7;margin:6px 0}
+.codigo-ms{font-family:var(--fc);font-size:28px;letter-spacing:3px;background:var(--sinal-claro);padding:2px 10px;border-radius:var(--r-s);user-select:all}
+.ok-ms{color:var(--ok);font-weight:700}
+.ms-espera{color:var(--nevoa)}
 .dlg{border:0;border-radius:var(--r-m);padding:22px;width:min(380px,92vw)}
 .dlg::backdrop{background:rgba(16,50,75,.55)}
 .dlg h2{font-family:var(--fc);margin:0 0 12px}
@@ -636,6 +640,12 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       </div>
     </div>
     <div class="coluna">
+      <div class="bloco" id="ad-ms" hidden>
+        <div class="rot">Conta Microsoft da fábrica</div>
+        <p id="ad-ms-st"></p>
+        <div id="ad-ms-caixa"></div>
+        <div class="novo-acoes"><button type="button" class="botao" id="ad-ms-ligar">Ligar ou trocar a conta</button></div>
+      </div>
       <div class="bloco">
         <div class="rot">Perfis de acesso <span>escolha um para editar</span></div>
         <div class="fichas largas" id="ad-perfis"></div>
@@ -858,10 +868,11 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 /* configuração já gravada na versão publicada (GitHub Pages): ninguém precisa preencher Configurar */
-const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG"};
+const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG", "proxy": "https://gelo-lancamentos.gelominerale.workers.dev"};
 if (CFG_PADRAO) {
   const c = LS.get("gm_cfg", {});
-  if (!c.clientId) LS.set("gm_cfg", {...CFG_PADRAO, ...c});
+  // completa o que faltar (ex.: o endereço do intermediário em aparelhos já configurados)
+  LS.set("gm_cfg", {...c, ...Object.fromEntries(Object.entries(CFG_PADRAO).filter(([k]) => c[k] == null || c[k] === ""))});
   if (LS.get("gm_modo", null) == null) LS.set("gm_modo", "planilha");
 }
 function toast(msg, {erro = false, acao = null, rotulo = "Desfazer", ms = 6000} = {}) {
@@ -1484,7 +1495,10 @@ const Demo = {
 /* ======================================================================
    Armazenamento: planilha no OneDrive/SharePoint (Microsoft Graph)
    ====================================================================== */
-const GRAPH = "https://graph.microsoft.com/v1.0";
+const GRAPH_MS = "https://graph.microsoft.com/v1.0";
+/* com intermediário (Cloudflare): o site não fala com a Microsoft; o intermediário grava pela conta da fábrica */
+const PROXY = () => (LS.get("gm_cfg", {}).proxy || "").replace(/\/$/, "");
+const graphBase = () => PROXY() ? PROXY() + "/graph" : GRAPH_MS;
 const ESCOPOS = ["User.Read", "Files.ReadWrite.All"];
 const Planilha = {
   nome: "Planilha",
@@ -1492,6 +1506,7 @@ const Planilha = {
   cfg() { return LS.get("gm_cfg", {}); },
   async iniciar() {
     const c = this.cfg();
+    if (PROXY()) { this.conta = Acesso.sessao && Acesso.sessao.token ? {name: "conta da fábrica", username: "intermediário"} : null; return this.conta; }
     if (!c.clientId) throw new Error("Falta o ID do aplicativo em Configurar.");
     if (typeof msal === "undefined") throw new Error("A biblioteca de login da Microsoft não carregou.");
     if (!this.pca) {
@@ -1508,9 +1523,10 @@ const Planilha = {
     if (this.conta) this.pca.setActiveAccount(this.conta);
     return this.conta;
   },
-  async entrar() { await this.iniciar(); if (!this.conta) await this.pca.loginRedirect({scopes: ESCOPOS}); return this.conta; },
-  async sair() { await this.iniciar(); if (this.conta) await this.pca.logoutRedirect({account: this.conta}); },
+  async entrar() { if (PROXY()) return this.iniciar(); await this.iniciar(); if (!this.conta) await this.pca.loginRedirect({scopes: ESCOPOS}); return this.conta; },
+  async sair() { if (PROXY()) return Acesso.sair(); await this.iniciar(); if (this.conta) await this.pca.logoutRedirect({account: this.conta}); },
   async token() {
+    if (PROXY()) { if (!Acesso.sessao || !Acesso.sessao.token) { Acesso.expirou(); throw new Error("Entre com seu usuário."); } return Acesso.sessao.token; }
     await this.iniciar();
     if (!this.conta) throw new Error("Entre com a conta Microsoft em Configurar.");
     try { return (await this.pca.acquireTokenSilent({scopes: ESCOPOS, account: this.conta})).accessToken; }
@@ -1523,8 +1539,13 @@ const Planilha = {
       const id = await this.idSessao(); if (id) h["workbook-session-id"] = id;
     }
     let resp;
-    try { resp = await fetch(caminho.startsWith("http") ? caminho : GRAPH + caminho, {method: metodo, headers: h, body: corpo === undefined ? undefined : JSON.stringify(corpo)}); }
+    try { resp = await fetch(caminho.startsWith("http") ? caminho : graphBase() + caminho, {method: metodo, headers: h, body: corpo === undefined ? undefined : JSON.stringify(corpo)}); }
     catch (e) { const err = new Error("Sem conexão com a internet."); err.rede = true; throw err; }
+    if (PROXY() && (resp.status === 401 || resp.status === 503)) {
+      const t = await resp.clone().text();
+      if (resp.status === 401 && /Sess/.test(t)) { Acesso.expirou(); const err = new Error("Sua sessão acabou. Entre de novo."); err.status = 401; throw err; }
+      if (/semMS/.test(t) && /true/.test(t)) { let m = t; try { m = JSON.parse(t).erro; } catch {} const err = new Error(m); err.status = 503; throw err; }
+    }
     if ([429, 503, 504].includes(resp.status) && tentativa < 4) {
       const espera = (Number(resp.headers.get("Retry-After")) || 2 ** tentativa) * 1000;
       await new Promise(r => setTimeout(r, espera)); return this.req(metodo, caminho, corpo, {sessao, tentativa: tentativa + 1});
@@ -1564,7 +1585,7 @@ const Planilha = {
   /* Envia um arquivo (fotos). Mesmo tratamento de erro do req, mas o corpo é binário. */
   async reqArquivo(caminho, blob, tentativa = 0) {
     let resp;
-    try { resp = await fetch(GRAPH + caminho, {method: "PUT", headers: {Authorization: "Bearer " + await this.token(), "Content-Type": blob.type || "image/jpeg"}, body: blob}); }
+    try { resp = await fetch(graphBase() + caminho, {method: "PUT", headers: {Authorization: "Bearer " + await this.token(), "Content-Type": blob.type || "image/jpeg"}, body: blob}); }
     catch (e) { const err = new Error("Sem conexão com a internet."); err.rede = true; throw err; }
     if ([429, 503, 504].includes(resp.status) && tentativa < 4) {
       await new Promise(r => setTimeout(r, (Number(resp.headers.get("Retry-After")) || 2 ** tentativa) * 1000));
@@ -2831,7 +2852,29 @@ const Acesso = {
     const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(senha), "PBKDF2", false, ["deriveBits"]);
     return b64(await crypto.subtle.deriveBits({name: "PBKDF2", hash: "SHA-256", salt: deb64(salt), iterations: iter}, k, 256));
   },
-  async novaSenha(senha) { const salt = b64(crypto.getRandomValues(new Uint8Array(16))); return {salt, iter: 150000, hash: await this.hash(senha, salt)}; },
+  async novaSenha(senha) { const salt = b64(crypto.getRandomValues(new Uint8Array(16))); return {salt, iter: 100000, hash: await this.hash(senha, salt, 100000)}; },
+  /* chamadas ao intermediário */
+  async api(metodo, rota, corpo) {
+    const h = {}; if (corpo !== undefined) h["Content-Type"] = "application/json";
+    if (this.sessao && this.sessao.token) h.Authorization = "Bearer " + this.sessao.token;
+    let r; try { r = await fetch(PROXY() + rota, {method: metodo, headers: h, body: corpo === undefined ? undefined : JSON.stringify(corpo)}); }
+    catch { const e = new Error("Sem conexão com a internet."); e.rede = true; throw e; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.erro || `O servidor recusou (${r.status}).`); e.status = r.status; e.semMS = j.semMS; throw e; }
+    return j;
+  },
+  guardarSessao(s) {
+    this.sessao = {token: s.token, login: s.login, nome: s.nome, perfil: s.perfil, ate: s.ate, perfis: s.perfis || (this.sessao && this.sessao.perfis)};
+    LS.set("gm_sessao", this.sessao);
+    if (!this.dados || !this.dados.usuarios || !this.dados.usuarios.length) this.dados = {versao: 1, perfis: this.sessao.perfis || PERFIS_PADRAO(), usuarios: []};
+    else this.dados.perfis = this.sessao.perfis || this.dados.perfis;
+  },
+  expirou() {
+    if ($("#entrada").hidden === false) return;
+    LS.set("gm_sessao", null); this.sessao = null;
+    entradaOk = () => { aplicarAcesso(); recarregar(); };
+    mostrarEntrada("entrar", "Sua sessão acabou. Entre de novo.");
+  },
   /* onde fica o arquivo */
   async caminho() {
     if (App.store === Antigo) { await Antigo.abrir(); return `/drives/${Antigo.drive}/items/${Antigo.raiz}:/Site/acesso.json`; }
@@ -2840,6 +2883,12 @@ const Acesso = {
   remoto() { return App.modo === "planilha"; },
   async carregar() {
     let d = null;
+    if (PROXY()) {
+      if (this.sessao && this.sessao.token && this.admin()) d = await this.api("GET", "/admin/acesso");
+      else d = {versao: 1, perfis: (this.sessao && this.sessao.perfis) || PERFIS_PADRAO(), usuarios: []};
+      if (!d.perfis || !d.perfis.length) d.perfis = PERFIS_PADRAO();
+      return (this.dados = d);
+    }
     if (!this.remoto()) d = LS.get("gm_acesso", null);
     else {
       try {
@@ -2857,6 +2906,13 @@ const Acesso = {
     return this.dados;
   },
   async salvar(mudar) {
+    if (PROXY()) {
+      const d = await this.api("GET", "/admin/acesso"); if (!d.perfis || !d.perfis.length) d.perfis = PERFIS_PADRAO();
+      mudar(d); d.alterado = new Date().toISOString(); d.alteradoPor = this.sessao ? this.sessao.login : "";
+      await this.api("PUT", "/admin/acesso", d); this.dados = d;
+      if (this.sessao) { this.sessao.perfis = d.perfis; const u = d.usuarios.find(x => x.login === this.sessao.login); if (u) { this.sessao.perfil = u.perfil; this.sessao.nome = u.nome; } LS.set("gm_sessao", this.sessao); }
+      return;
+    }
     // relê antes de gravar (outro administrador pode ter mexido) e aplica a mudança por cima
     await this.carregar();
     if (this.dados.__offline) throw new Error("Sem internet: não dá para mudar usuários agora.");
@@ -2870,8 +2926,8 @@ const Acesso = {
     }
     this.dados = d;
   },
-  perfil(id) { return (this.dados && this.dados.perfis || []).find(p => p.id === id) || null; },
   usuario(login) { return (this.dados && this.dados.usuarios || []).find(u => u.login === login) || null; },
+  perfil(id) { const lista = (this.dados && this.dados.perfis) || (this.sessao && this.sessao.perfis) || []; return lista.find(p => p.id === id) || null; },
   admin() { const p = this.sessao && this.perfil(this.sessao.perfil); return !!(p && p.admin); },
   pode(tela, acao) {
     const p = this.sessao && this.perfil(this.sessao.perfil); if (!p) return false;
@@ -2879,6 +2935,7 @@ const Acesso = {
     return !!(p.perm && p.perm[tela] && p.perm[tela][acao]);
   },
   async entrar(login, senha) {
+    if (PROXY()) { this.guardarSessao(await this.api("POST", "/entrar", {login, senha})); return; }
     const u = this.usuario(normLogin(login));
     if (!u || (await this.hash(senha, u.salt, u.iter)) !== u.hash) throw new Error("Usuário ou senha não conferem.");
     if (u.ativo === false) throw new Error("Este usuário está desativado. Fale com o administrador.");
@@ -2886,11 +2943,12 @@ const Acesso = {
     LS.set("gm_sessao", this.sessao);
   },
   restaurar() {
+    if (PROXY()) { const s = LS.get("gm_sessao", null); if (s && s.token && s.ate > Date.now()) { this.guardarSessao(s); return true; } LS.set("gm_sessao", null); this.sessao = null; return false; }
     const s = LS.get("gm_sessao", null), u = s && this.usuario(s.login);
     if (s && u && u.ativo !== false && s.ate > Date.now()) { this.sessao = {...s, nome: u.nome, perfil: u.perfil}; return true; }
     LS.set("gm_sessao", null); this.sessao = null; return false;
   },
-  sair() { LS.set("gm_sessao", null); this.sessao = null; location.reload(); },
+  async sair() { if (PROXY()) { try { await this.api("POST", "/sair"); } catch {} } LS.set("gm_sessao", null); this.sessao = null; location.reload(); },
 };
 const pode = (tela, acao) => Acesso.pode(tela, acao);
 const TELA_DA_LISTA = {"#x-ultimos": "expedicao", "#p-ultimos": "producao", "#e-ultimos": "embalagens", "#l-ultimos": "leituras", "#a-ultimos": "ajustes"};
@@ -2901,7 +2959,7 @@ function mostrarEntrada(modo, msg = "") {
   $("#en-msg").textContent = msg;
   $("#en-ms").hidden = modo !== "microsoft"; $("#en-form").hidden = modo === "microsoft";
   $("#en-primeiro").hidden = modo !== "primeiro"; $("#en-nome-campo").hidden = modo !== "primeiro"; $("#en-senha2-campo").hidden = modo !== "primeiro";
-  $("#en-tit").textContent = modo === "primeiro" ? "Primeiro acesso" : modo === "microsoft" ? "Ligar este aparelho" : "Entrar";
+  $("#en-tit").textContent = modo === "primeiro" ? "Primeiro acesso" : modo === "microsoft" ? (PROXY() ? "Ligar a conta da fábrica" : "Ligar este aparelho") : "Entrar";
   $("#en-botao").textContent = modo === "primeiro" ? "Criar administrador e entrar" : "Entrar";
   t.dataset.modo = modo;
   setTimeout(() => { const f = modo === "primeiro" ? $("#en-nome") : $("#en-login"); if (f && !f.closest("[hidden]")) f.focus(); }, 50);
@@ -2918,10 +2976,13 @@ async function enviarEntrada(e) {
       if (!nome || !l) throw new Error("Preencha o nome e o usuário.");
       if (senha.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
       if (senha !== $("#en-senha2").value) throw new Error("As duas senhas estão diferentes.");
-      const s = await Acesso.novaSenha(senha);
-      await Acesso.salvar(d => { if (d.usuarios.length) throw new Error("Outro aparelho já criou o administrador. Recarregue a página."); d.usuarios.push({login: l, nome, perfil: "admin", ativo: true, ...s, criado: new Date().toISOString()}); });
+      if (PROXY()) Acesso.guardarSessao(await Acesso.api("POST", "/primeiro", {nome, login: l, senha, perfis: PERFIS_PADRAO()}));
+      else {
+        const s = await Acesso.novaSenha(senha);
+        await Acesso.salvar(d => { if (d.usuarios.length) throw new Error("Outro aparelho já criou o administrador. Recarregue a página."); d.usuarios.push({login: l, nome, perfil: "admin", ativo: true, ...s, criado: new Date().toISOString()}); });
+      }
     }
-    await Acesso.entrar(login, senha);
+    if (!(PROXY() && modo === "primeiro")) await Acesso.entrar(login, senha);
     $("#en-senha").value = ""; $("#en-senha2").value = "";
     esconderEntrada(); aplicarAcesso(); if (entradaOk) { const f = entradaOk; entradaOk = null; f(); }
   } catch (err) { $("#en-msg").textContent = err.rede ? "Sem internet. Tente de novo quando voltar a conexão." : err.message; }
@@ -2929,6 +2990,22 @@ async function enviarEntrada(e) {
 }
 /* Garante um usuário do site antes de usar. Resolve quando alguém entrou. */
 async function exigirEntrada() {
+  if (PROXY()) {
+    let st;
+    try { st = await Acesso.api("GET", "/status"); }
+    catch (e) { mostrarEntrada("entrar", e.rede ? "Sem internet. Tente de novo quando voltar a conexão." : e.message); return new Promise(r => entradaOk = r); }
+    ADM.ms = st;
+    if (!st.temUsuarios) {
+      if (!st.ligado) { mostrarEntrada("microsoft", "Primeiro passo: ligar a conta Microsoft da fábrica (a do Caio). Isso é feito uma vez só, aqui; os aparelhos da equipe não precisam."); return new Promise(r => entradaOk = r); }
+      mostrarEntrada("primeiro"); return new Promise(r => entradaOk = r);
+    }
+    if (Acesso.restaurar()) {
+      try { Acesso.guardarSessao({...Acesso.sessao, ...(await Acesso.api("GET", "/sessao"))}); aplicarAcesso(); return; }
+      catch (e) { if (e.rede) { aplicarAcesso(); return; } LS.set("gm_sessao", null); Acesso.sessao = null; }
+    }
+    mostrarEntrada("entrar", !st.ligado ? "Atenção: a conta Microsoft da fábrica está desligada. Um administrador precisa entrar e ligar em Administração." : "");
+    return new Promise(r => entradaOk = r);
+  }
   if (App.modo === "planilha" && !Planilha.conta) {
     mostrarEntrada("microsoft", "Este aparelho ainda não está ligado à conta Microsoft da fábrica. O administrador liga uma vez e depois cada um entra com seu usuário.");
     return new Promise(() => {});  // o botão leva para o login da Microsoft e a página volta recarregada
@@ -2938,6 +3015,24 @@ async function exigirEntrada() {
   if (!Acesso.dados.usuarios.length) { mostrarEntrada("primeiro"); return new Promise(r => entradaOk = r); }
   if (Acesso.restaurar()) { aplicarAcesso(); return; }
   mostrarEntrada("entrar"); return new Promise(r => entradaOk = r);
+}
+
+/* ---------- ligar a conta Microsoft da fábrica no intermediário (código de dispositivo) ---------- */
+async function ligarMicrosoft(caixa, aoTerminar) {
+  caixa.innerHTML = `<p>Gerando o código…</p>`;
+  let c;
+  try { c = await Acesso.api("POST", "/ms/iniciar"); }
+  catch (e) { caixa.innerHTML = `<p class="en-msg">${esc(e.message)}</p>`; return; }
+  caixa.innerHTML = `<ol class="passos-ms"><li>Abra <a href="${esc(c.endereco)}" target="_blank" rel="noopener">${esc(c.endereco.replace(/^https?:\/\//, ""))}</a> (pode ser no celular).</li>
+    <li>Digite o código <b class="codigo-ms">${esc(c.codigo)}</b></li><li>Entre com a <b>conta do Caio</b> e aceite.</li></ol><p class="ms-espera">Aguardando a Microsoft…</p>`;
+  const fim = Date.now() + c.expira * 1000;
+  while (Date.now() < fim) {
+    await new Promise(r => setTimeout(r, Math.max(5, c.intervalo || 5) * 1000));
+    let r; try { r = await Acesso.api("POST", "/ms/concluir"); } catch (e) { $(".ms-espera", caixa).textContent = e.message; if (e.status === 410) return; continue; }
+    if (r.pronto) { caixa.innerHTML = `<p class="ok-ms">Ligado com a conta de ${esc(r.conta || "")}.</p>`; if (aoTerminar) aoTerminar(r); return; }
+    if (r.erro) { $(".ms-espera", caixa).textContent = r.erro; return; }
+  }
+  $(".ms-espera", caixa).textContent = "O código expirou. Gere outro.";
 }
 
 /* ---------- aplica as permissões na tela ---------- */
@@ -2971,7 +3066,11 @@ const ADM = {perfilAberto: null};
 function desenharAdmin() {
   if (!Acesso.admin()) return;
   const d = Acesso.dados, perfis = d.perfis, nomePerfil = id => (Acesso.perfil(id) || {}).nome || id;
-  $("#ad-origem").textContent = App.modo === "planilha" ? "Guardado na pasta EXPEDIÇÃO E PRODUÇÃO GELO, em Site/acesso.json. Vale para todos os aparelhos." : "Modo demonstração: os usuários ficam só neste aparelho.";
+  if (PROXY()) {
+    $("#ad-ms").hidden = false;
+    Acesso.api("GET", "/status").then(st => { ADM.ms = st; $("#ad-ms-st").textContent = st.ligado ? `Ligada: ${st.conta || "conta da fábrica"}. Os lançamentos vão para a planilha por esta conta.` : "Desligada: ninguém consegue gravar na planilha até ligar de novo."; $("#ad-ms-st").className = st.ligado ? "ok-ms" : "en-msg"; }).catch(() => {});
+  }
+  $("#ad-origem").textContent = PROXY() ? "Guardado no intermediário e na pasta EXPEDIÇÃO E PRODUÇÃO GELO (Site/acesso.json). Vale para todos os aparelhos." : App.modo === "planilha" ? "Guardado na pasta EXPEDIÇÃO E PRODUÇÃO GELO, em Site/acesso.json. Vale para todos os aparelhos." : "Modo demonstração: os usuários ficam só neste aparelho.";
   $("#ad-usuarios").innerHTML = `<tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th class="acao"><span class="sr">Ações</span></th></tr>` +
     d.usuarios.map((u, k) => `<tr${u.ativo === false ? ' class="inativo"' : ""}><td>${esc(u.nome)}${Acesso.sessao && u.login === Acesso.sessao.login ? ' <small class="voce">você</small>' : ""}</td><td>${esc(u.login)}</td>
       <td><select data-k="${k}" class="ad-perfil" aria-label="Perfil de ${esc(u.nome)}">${perfis.map(p => `<option value="${esc(p.id)}"${p.id === u.perfil ? " selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></td>
@@ -3072,6 +3171,12 @@ async function excluirPerfil() {
 }
 async function trocarMinhaSenha() {
   const atual = $("#mi-atual").value, s1 = $("#mi-nova").value, s2 = $("#mi-nova2").value, login = Acesso.sessao.login, u = Acesso.usuario(login);
+  if (PROXY()) {
+    if (s1.length < 6) return toast("A nova senha precisa ter pelo menos 6 caracteres.", {erro: true});
+    if (s1 !== s2) return toast("As duas senhas novas estão diferentes.", {erro: true});
+    try { await Acesso.api("POST", "/senha", {atual, nova: s1}); fecharMinhaSenha(); toast("Sua senha foi trocada."); } catch (e) { toast(e.message, {erro: true}); }
+    return;
+  }
   if (!u || (await Acesso.hash(atual, u.salt, u.iter)) !== u.hash) return toast("A senha atual não confere.", {erro: true});
   if (s1.length < 6) return toast("A nova senha precisa ter pelo menos 6 caracteres.", {erro: true});
   if (s1 !== s2) return toast("As duas senhas novas estão diferentes.", {erro: true});
@@ -3203,7 +3308,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   });
   $("#en-form").addEventListener("submit", enviarEntrada);
-  $("#en-ms-botao").onclick = () => Planilha.entrar().catch(e => { $("#en-msg").textContent = e.message; });
+  $("#en-ms-botao").onclick = () => {
+    if (!PROXY()) return Planilha.entrar().catch(e => { $("#en-msg").textContent = e.message; });
+    $("#en-ms-botao").hidden = true; $("#en-msg").textContent = "";
+    ligarMicrosoft($("#en-ms-caixa"), () => setTimeout(() => { $("#en-ms-botao").hidden = false; mostrarEntrada("primeiro"); }, 1500));
+  };
+  $("#ad-ms-ligar").onclick = () => ligarMicrosoft($("#ad-ms-caixa"), () => desenharAdmin());
   $("#usuario-sair").onclick = () => Acesso.sair();
   $("#usuario-senha").onclick = abrirMinhaSenha;
   $("#mi-salvar").onclick = trocarMinhaSenha; $("#mi-cancelar").onclick = fecharMinhaSenha;
@@ -3212,8 +3322,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#ad-p-salvar").onclick = salvarPerfil; $("#ad-p-novo").onclick = novoPerfil; $("#ad-p-excluir").onclick = excluirPerfil;
   $("#ad-p-admin").onchange = e => $$("#ad-matriz input").forEach(i => { i.disabled = e.target.checked; if (e.target.checked) i.checked = true; });
   $$("nav.abas button").forEach(b => b.hidden = true);
-  await recarregar();
-  await exigirEntrada();
+  if (PROXY()) { App.cad = LS.get("gm_cad_cache", null) || SCHEMA.cad; await exigirEntrada(); await recarregar(); }
+  else { await recarregar(); await exigirEntrada(); }
   if (App.modo !== "planilha") $("#h-data").value = $("#h-ate").value = ultimoDiaDemo();
   const t = LS.get("gm_tela", "expedicao"); if ($("#t-" + t)) irPara(telaPermitida(t) ? t : primeiraTela());
 });
@@ -3230,7 +3340,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="campo" id="en-senha2-campo" hidden><label for="en-senha2">Repita a senha</label><input id="en-senha2" type="password" autocomplete="new-password"></div>
       <button type="submit" class="botao primario" id="en-botao">Entrar</button>
     </form>
-    <div id="en-ms" hidden><button type="button" class="botao primario" id="en-ms-botao">Ligar com a conta Microsoft da fábrica</button></div>
+    <div id="en-ms" hidden><div id="en-ms-caixa"></div><button type="button" class="botao primario" id="en-ms-botao">Ligar com a conta Microsoft da fábrica</button></div>
     <p class="en-msg" id="en-msg" role="alert"></p>
   </div>
 </div>
