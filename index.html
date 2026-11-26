@@ -317,6 +317,7 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
   .contador button,.contador input{height:58px}
   .fichas{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+  small.placa { display: block; font-size: 11px; letter-spacing: .04em; opacity: .7; }
 </style>
 </head>
 <body>
@@ -368,6 +369,10 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
           <div class="novo-acoes"><button type="button" class="botao primario" id="x-novo-salvar" disabled>Cadastrar</button><button type="button" class="botao" id="x-novo-cancelar">Cancelar</button></div>
         </div>
         <div class="fichas" id="x-pessoas"></div>
+      </div>
+      <div class="bloco" id="x-placa-bloco">
+        <div class="campo" style="max-width:260px"><label for="x-placa">Placa do veículo <span class="opc">fica guardada para o motorista</span></label>
+          <input id="x-placa" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="8" placeholder="Ex.: ABC1D23"></div>
       </div>
       <div class="bloco"><div class="rot">Produto</div><div class="fichas largas" id="x-produtos"></div></div>
       <div class="bloco" id="x-motivo-bloco" hidden>
@@ -718,7 +723,7 @@ function ultimoDiaDemo() {
   return xs.map(r => r.Data).filter(d => d && d <= h).sort().pop() || h;
 }
 const ENTRADAS = {
-  tbExpedicao: ["Data","Pessoa","Produto","Tipo","Pallet","Fileira","Pacote","Motivo","Cliente final","Lote","Observação","Fotos"],
+  tbExpedicao: ["Data","Pessoa","Produto","Tipo","Pallet","Fileira","Pacote","Motivo","Cliente final","Lote","Observação","Fotos","Placa"],
   tbProducao: ["Data","Turno","Produto","Pallet","Fileira","Pacote","Parcial","Puxada","Lote","Perda informada","Observação"],
   tbEmbalagens: ["Data","Material","Movimento","Quantidade","Observação"],
   tbLeituras: ["Data","Equipamento","Hora início","Hora fim","Observação"],
@@ -728,6 +733,9 @@ const ENTRADAS = {
 const CADASTROS = ["tbProdutos","tbPessoas","tbMotivos","tbMateriais","tbEquipamentos","tbTipos"];
 const TURNOS = ["Dia","Noite"], MOV_EMB = ["Entrada","Uso","Ajuste"], MOT_AJ = ["Estoque inicial","Inventário","Correção","Outro"];
 const RUINS = ["Volta ruim","Perda"];
+/* placa: só letras e números, maiúsculas (ABC1D23 ou ABC1234) */
+const normPlaca = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+const placaOk = v => /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v);
 
 /* ======================================================================
    Utilidades
@@ -890,7 +898,7 @@ const ANT = {
   EST: {45: "MINERALE 3KG", 46: "MINERALE 10KG", 47: "BONTRAZ 3KG", 48: "BONTRAZ 10KG", 49: "PORTO BELO 3KG",
         50: "FLORIPA 3KG", 51: "BRASIL 3KG", 52: "POGAN 3KG", 53: "POGAN 3KG", 54: "ESCAMA GRANEL"},
   LOG: ["ID", "Registrado em", "Usuário", "Data", "Tabela", "Aba", "Células", "Tipo", "Pessoa ou equipamento", "Produto ou material",
-        "Pallet", "Fileira", "Pacote", "Total", "Motivo", "Cliente final", "Lote", "Observação", "Fotos", "Fotos (ids)", "Situação"],
+        "Pallet", "Fileira", "Pacote", "Total", "Motivo", "Cliente final", "Lote", "Observação", "Fotos", "Fotos (ids)", "Situação", "Placa"],
 };
 
 const Antigo = {
@@ -1018,7 +1026,13 @@ const Antigo = {
     const arq = await this.arquivo(dataISO);
     try {
       const r = await this.req("GET", `${this.ws(arq, "Site")}/usedRange(valuesOnly=true)?$select=values`);
-      return {arq, linhas: r.values || []};
+      const linhas = r.values || [];
+      // aba Site criada por uma versão anterior: acrescenta as colunas novas no cabeçalho (ex.: Placa)
+      if (linhas.length && linhas[0].length < ANT.LOG.length) {
+        await this.escrever(arq, "Site", `A1:${colL(ANT.LOG.length)}1`, [ANT.LOG]);
+        linhas[0] = ANT.LOG.slice(); for (let k = 1; k < linhas.length; k++) while (linhas[k].length < ANT.LOG.length) linhas[k].push("");
+      }
+      return {arq, linhas};
     } catch (e) {
       if (e.status !== 404) throw e;
       await this.req("POST", `${arq.base}/worksheets/add`, {name: "Site"});
@@ -1054,7 +1068,7 @@ const Antigo = {
       const l = mapa[`${isoBR(r.Data)}|${String(r.__i).split("!")[1]}`];
       if (!l) return r;
       return {...r, Motivo: l[I("Motivo")] || r.Motivo, "Cliente final": l[I("Cliente final")] || null, Lote: l[I("Lote")] || r.Lote,
-              "Observação": l[I("Observação")] || r["Observação"], Fotos: l[I("Fotos (ids)")] || r.Fotos};
+              "Observação": l[I("Observação")] || r["Observação"], Fotos: l[I("Fotos (ids)")] || r.Fotos, Placa: l[I("Placa")] || r.Placa || null};
     });
   },
 
@@ -1158,7 +1172,7 @@ const Antigo = {
             Aba: aba, "Células": celulas, Tipo: o.Tipo || o.Turno || o.Movimento || "", "Pessoa ou equipamento": o.Pessoa || o.Equipamento || "",
             "Produto ou material": o.Produto || o.Material || "", Pallet: o.Pallet ?? "", Fileira: o.Fileira ?? "", Pacote: o.Pacote ?? o.Quantidade ?? "",
             Total: total ?? "", Motivo: o.Motivo || "", "Cliente final": o["Cliente final"] || "", Lote: o.Lote || "", "Observação": o["Observação"] || "",
-            Fotos: nomes, "Fotos (ids)": o.Fotos || "", "Situação": "lançado"};
+            Fotos: nomes, "Fotos (ids)": o.Fotos || "", "Situação": "lançado", Placa: o.Placa || ""};
   },
 
   /* ---------- aba Produção (produção, bobinas, horários) ---------- */
@@ -1300,7 +1314,7 @@ const Antigo = {
     const d = info && info.data || hojeISO(), [a, m, dd] = d.split("-");
     const agora = new Date(), hh = String(agora.getHours()).padStart(2, "0"), mi = String(agora.getMinutes()).padStart(2, "0");
     const limpo = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const pref = [dd, m, a, hh, mi, limpo(info && info.pessoa).toUpperCase(), limpo(info && info.tipo), limpo(info && info.produto).toUpperCase()].join("_");
+    const pref = [dd, m, a, hh, mi, limpo(info && info.pessoa).toUpperCase(), info && info.placa ? limpo(info.placa).toUpperCase() : null, limpo(info && info.tipo), limpo(info && info.produto).toUpperCase()].filter(Boolean).join("_");
     const ids = refAntiga && refAntiga.startsWith("ant:") ? refAntiga.slice(4).split(",").filter(Boolean) : [], nomes = [], base = ids.length;
     for (let k = 0; k < blobs.length; k++) {
       const nome = `${pref}_${base + k + 1}.jpg`;
@@ -1649,7 +1663,7 @@ const Fila = {
       try {
         if (it.obj.__fotos) {
           const blobs = ((await FotoDB.get(it.obj.__fotos)) || []).map(textoParaBlob);
-          if (blobs.length) it.obj.Fotos = await App.store.subirFotos(blobs, it.obj.__pasta || "sem data", null, {data: it.obj.Data, pessoa: it.obj.Pessoa, tipo: it.obj.Tipo, produto: it.obj.Produto});
+          if (blobs.length) it.obj.Fotos = await App.store.subirFotos(blobs, it.obj.__pasta || "sem data", null, {data: it.obj.Data, pessoa: it.obj.Pessoa, placa: it.obj.Placa, tipo: it.obj.Tipo, produto: it.obj.Produto});
           const chave = it.obj.__fotos; delete it.obj.__fotos; delete it.obj.__pasta;
           await App.store.adicionar(it.t, it.obj); ok++;
           try { await FotoDB.del(chave); } catch {}
@@ -1746,7 +1760,7 @@ function cancelarEdicao(el, {limpar = true, voltar = true} = {}) {
 }
 function descX(o) {
   const kg = (produtoDe(o.Produto) || {}).Unidade === "kg";
-  return `${o.Tipo}${o.Tipo === "Volta ruim" && o.Motivo === "Troca" ? " (troca)" : ""} · ${o.Pessoa} · ${o.Produto} · ${fmt(totalLinha(o), kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
+  return `${o.Tipo}${o.Tipo === "Volta ruim" && o.Motivo === "Troca" ? " (troca)" : ""} · ${o.Pessoa}${o.Placa ? " · placa " + o.Placa : ""} · ${o.Produto} · ${fmt(totalLinha(o), kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
 }
 /* Abre na tela de Expedição um lançamento lido da planilha no Resumo do dia; ao salvar ou cancelar, volta ao Resumo. */
 function editarDoResumo(r) {
@@ -1902,7 +1916,7 @@ function desenharPessoas() {
     .sort((a, b) => (ordem[a.grupo] ?? 5) - (ordem[b.grupo] ?? 5));
   fichas($("#x-pessoas"), pes, p => {
     if (!p.ativa) { marcarFicha($("#x-pessoas"), X.pessoa || ""); abrirMenuPessoa(p.nome, $(`#x-pessoas .ficha[data-valor="${CSS.escape(p.nome)}"]`)); return; }
-    X.pessoa = p.nome; $("#x-pessoa-sel").textContent = ""; atualizarX();
+    X.pessoa = p.nome; $("#x-pessoa-sel").textContent = ""; $("#x-placa").value = LS.get("gm_placas", {})[p.nome] || ""; atualizarX();
   }, {grupo: p => p.grupo, sub: p => !p.ativa ? "inativo · toque para ativar" : p.cod ? `código ${p.cod}` : "", filtro: busca});
   const vz = $(".vazio", $("#x-pessoas")); if (vz) vz.textContent = "Ninguém com esse nome ou código. Toque em + Novo para cadastrar.";
   $$("#x-pessoas .ficha").forEach(b => {
@@ -2042,6 +2056,8 @@ function atualizarX() {
     const f0 = fechamento(ed.Pessoa, ed.Produto);
     if (f0.carregou < f0.voltas) bloqueio = `Sem esta saída, ${ed.Pessoa} fica com carga de ${fmt(f0.carregou)} de ${ed.Produto}, menos que as voltas já lançadas (${fmt(f0.voltas)}).`;
   }
+  const pl = normPlaca($("#x-placa").value);
+  if (!bloqueio && pl && !placaOk(pl)) bloqueio = "Placa incompleta: use o formato ABC1D23 ou ABC1234.";
   $("#x-faltando").textContent = falta.length ? "Falta: " + falta.join(", ") + "." : bloqueio;
   $("#x-lancar").disabled = !!falta.length || !!bloqueio || !!X.enviando;
   X.total = tot;
@@ -2062,16 +2078,17 @@ async function lancarX0() {
     Pacote: num($("#x-pacote").value) || null,
     Motivo: ruim ? X.motivo : null, "Cliente final": (X.tipo === "Volta ruim" && X.motivo === "Troca") ? ($("#x-cliente").value.trim().toUpperCase() || null) : null,
     Lote: ruim ? ($("#x-lote").value.trim() || null) : null, "Observação": $("#x-obs").value.trim() || null,
+    Placa: normPlaca($("#x-placa").value) || null,
   };
   obj.Fotos = X.fotosRef || null;
   const nFotos = X.fotos.length;
-  const desc = `${X.tipo}${ruim && X.motivo === "Troca" ? " (troca)" : ""} · ${X.pessoa} · ${X.produto} · ${fmt(X.total, kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
+  const desc = `${X.tipo}${ruim && X.motivo === "Troca" ? " (troca)" : ""} · ${X.pessoa}${obj.Placa ? " · placa " + obj.Placa : ""} · ${X.produto} · ${fmt(X.total, kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
   if (nFotos) {
     const agora = new Date(), dia = obj.Data;
-    const pasta = `${dia.slice(0, 7)}/${dia.slice(8, 10)}/${nomeArquivo(`${String(agora.getHours()).padStart(2, "0")}h${String(agora.getMinutes()).padStart(2, "0")}m${String(agora.getSeconds()).padStart(2, "0")} ${X.pessoa} ${X.tipo} ${X.produto}`)}`;
+    const pasta = `${dia.slice(0, 7)}/${dia.slice(8, 10)}/${nomeArquivo(`${String(agora.getHours()).padStart(2, "0")}h${String(agora.getMinutes()).padStart(2, "0")}m${String(agora.getSeconds()).padStart(2, "0")} ${X.pessoa}${obj.Placa ? " " + obj.Placa : ""} ${X.tipo} ${X.produto}`)}`;
     const blobs = X.fotos.map(f => f.blob);
     btn.textContent = `Enviando ${nFotos} foto${nFotos > 1 ? "s" : ""}…`;
-    try { obj.Fotos = await App.store.subirFotos(blobs, pasta, X.fotosRef, {data: obj.Data, pessoa: X.pessoa, tipo: X.tipo, produto: X.produto}); }
+    try { obj.Fotos = await App.store.subirFotos(blobs, pasta, X.fotosRef, {data: obj.Data, pessoa: X.pessoa, placa: obj.Placa, tipo: X.tipo, produto: X.produto}); }
     catch (e) {
       btn.textContent = X.editando ? "Salvar alteração" : "Lançar";
       if (e.rede && !X.editando) {
@@ -2094,6 +2111,7 @@ async function lancarX0() {
   if (ok && !obj.__pendente) Carga.anotar(obj, 1);
   delete obj.__pendente;
   if (ok) {
+    if (obj.Placa) { const pl = LS.get("gm_placas", {}); pl[obj.Pessoa] = obj.Placa; LS.set("gm_placas", pl); }
     limparFotosX();
     ["#x-pallet", "#x-fileira", "#x-pacote"].forEach(s => $(s).value = 0);
     $("#x-obs").value = ""; $("#x-cliente").value = ""; $("#x-lote").value = "";
@@ -2143,7 +2161,7 @@ function abrirX(o) {
   X.motivo = o.Motivo || null; marcarFicha($("#x-motivos"), X.motivo || "");
   X.produto = o.Produto; marcarFicha($("#x-produtos"), o.Produto);
   $("#x-pallet").value = o.Pallet || 0; $("#x-fileira").value = o.Fileira || 0; $("#x-pacote").value = o.Pacote || 0;
-  $("#x-cliente").value = o["Cliente final"] || ""; $("#x-lote").value = o.Lote ?? ""; $("#x-obs").value = o["Observação"] || "";
+  $("#x-cliente").value = o["Cliente final"] || ""; $("#x-lote").value = o.Lote ?? ""; $("#x-obs").value = o["Observação"] || ""; $("#x-placa").value = o.Placa || "";
   X.fotos = []; X.fotosRef = o.Fotos || null; desenharFotosX();
 }
 /* ----- Cadastro rápido de motorista ou cliente (grava na tabela tbPessoas) ----- */
@@ -2591,7 +2609,7 @@ async function desenharHoje() {
     const tagTipo = t => `<span class="tag ${t === "Volta boa" ? "bom" : t === "Perda" ? "perda" : RUINS.includes(t) ? "ruim" : ""}">${esc(t)}</span>`;
     const colData = r => P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`;
     $("#h-lista").innerHTML = doDia.length ? `<tr>${P.umDia ? "" : "<th>Data</th>"}<th>Pessoa</th><th>Tipo</th><th>Produto</th><th class="n">Qtd</th><th>Motivo</th><th class="acao"><span class="sr">Fotos e editar</span></th></tr>` +
-      doDia.map((r, k) => `<tr>${colData(r)}<td>${esc(r.Pessoa)}</td><td>${tagTipo(r.Tipo)}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td>` +
+      doDia.map((r, k) => `<tr>${colData(r)}<td>${esc(r.Pessoa)}${r.Placa ? `<small class="placa">${esc(r.Placa)}</small>` : ""}</td><td>${tagTipo(r.Tipo)}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td>` +
         `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button>` : ""}</td></tr>`).join("")
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
     $$("#h-lista button.lapis-claro").forEach(b => b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]));
@@ -2727,6 +2745,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $$("nav.abas button").forEach(b => b.onclick = () => irPara(b.dataset.tela));
   stepper($("#t-expedicao"), atualizarX); stepper($("#t-producao"), atualizarP); stepper($("#t-embalagens"), atualizarE); stepper($("#t-ajustes"), atualizarA);
   $("#x-data").addEventListener("input", () => { Carga.carregar($("#x-data").value, true); atualizarX(); });
+  $("#x-placa").addEventListener("input", e => { const i = e.target, v = i.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""); if (v !== i.value) i.value = v; atualizarX(); });
   ["#p-data", "#p-parcial", "#p-puxada", "#p-perdainf"].forEach(s => $(s).addEventListener("input", atualizarP));
   $("#p-data").addEventListener("input", () => loteP());
   $("#p-lote").addEventListener("input", e => { if (e.target.value.trim()) e.target.dataset.manual = "1"; else delete e.target.dataset.manual; loteP(); });
