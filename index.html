@@ -1184,6 +1184,9 @@ const Antigo = {
     if (L.parcial && num(o.Parcial) != null) await this.limpar(arq, "Produção", `${c}${L.parcial[o.Turno]}`);
     if (L.puxada && num(o.Puxada)) { const v = this.numv(this.cel(F, `${c}${L.puxada}`)) - num(o.Puxada); v ? await this.escrever(arq, "Produção", `${c}${L.puxada}`, [[v]]) : await this.limpar(arq, "Produção", `${c}${L.puxada}`); }
     if (L.perda && num(o["Perda informada"])) { const v = this.numv(this.cel(F, `${c}${L.perda}`)) - num(o["Perda informada"]); v ? await this.escrever(arq, "Produção", `${c}${L.perda}`, [[v]]) : await this.limpar(arq, "Produção", `${c}${L.perda}`); }
+    // lote: só limpa se o outro turno do dia também está vazio e o lote é o deste lançamento
+    const outro = o.Turno === "Dia" ? "Noite" : "Dia";
+    if (L.lote && o.Lote && this.vazio(this.cel(F, `${c}${L[outro]}`)) && String(this.cel(F, `${c}${L.lote}`).v) === String(o.Lote)) await this.limpar(arq, "Produção", `${c}${L.lote}`);
     await this.marcarLog(d, `${c}${L[o.Turno]}`, {"Situação": "desfeito"}).catch(() => {});
   },
   async producao(dias) {
