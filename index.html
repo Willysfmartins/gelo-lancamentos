@@ -226,6 +226,10 @@ table.dados th.acao,table.dados td.acao{width:140px;text-align:right;padding:4px
 .lixo-claro svg{width:17px;height:17px}
 .lixo-claro:hover,.lixo-claro:focus-visible{background:var(--erro-claro);border-color:var(--erro)}
 .lixo-claro.confirmar{background:var(--erro);border-color:var(--erro);color:#fff}
+table.hist td.hora{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--aco-2)}
+small.hist-x{display:block;color:var(--nevoa);font-size:12px}
+.gal-remover{border:1.5px solid var(--erro)!important;color:var(--erro)!important;background:#fff!important}
+.gal-remover.confirmar{background:var(--erro)!important;color:#fff!important}
 .btn-lancar.salvar:hover{background:#A87700}
 #barra button.salvar{background:#C98F00}
 .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:700;background:var(--ciano-claro);color:var(--ciano-escuro)}
@@ -378,6 +382,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
     <button data-tela="leituras">Leituras</button>
     <button data-tela="ajustes">Ajustes</button>
     <button data-tela="hoje">Resumo do dia</button>
+    <button data-tela="historico" hidden>Histórico</button>
     <button data-tela="admin" hidden>Administração</button>
     <button data-tela="config">Configurar</button>
   </nav>
@@ -616,6 +621,21 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 </section>
 
 <!-- ============================ CONFIGURAR ============================ -->
+<section class="tela" id="t-historico" aria-labelledby="h-hist">
+  <h1 class="titulo" id="h-hist">Histórico</h1>
+  <p class="sub">Tudo o que cada usuário fez no site: lançamentos, edições, desfazer, cancelamentos, fotos removidas, cadastros e mudanças na Administração. Só administradores veem esta tela.</p>
+  <div class="bloco" style="margin-bottom:18px"><div class="linha-campos" style="align-items:flex-end">
+    <div class="campo" style="max-width:180px"><label for="hi-de">De</label><input type="date" id="hi-de"></div>
+    <div class="campo" style="max-width:180px"><label for="hi-ate">Até</label><input type="date" id="hi-ate"></div>
+    <div class="campo" style="max-width:220px"><label for="hi-usuario">Usuário</label><select id="hi-usuario"><option value="">Todos</option></select></div>
+    <div class="campo" style="max-width:240px"><label for="hi-acao">Ação</label><select id="hi-acao"><option value="">Todas</option></select></div>
+    <div class="campo" style="flex:1 1 200px"><label for="hi-busca">Procurar</label><input id="hi-busca" placeholder="motorista, produto, placa…"></div>
+    <div class="campo" style="flex:0"><button class="botao primario" id="hi-atualizar">Atualizar</button></div>
+    <div class="campo" style="flex:0"><button class="botao" id="hi-csv">Baixar CSV</button></div>
+  </div></div>
+  <div class="bloco"><div class="rot">Registros <span id="hi-info"></span></div><div class="rolagem" style="max-height:none"><table class="dados hist" id="hi-tabela"></table></div></div>
+</section>
+
 <section class="tela" id="t-admin" aria-labelledby="h-adm">
   <h1 class="titulo" id="h-adm">Administração</h1>
   <p class="sub">Usuários e senhas do site e o que cada perfil pode ver e fazer. A gravação na planilha continua pela conta Microsoft deste aparelho; na aba Site da planilha fica o nome do usuário que lançou. <span id="ad-origem"></span></p>
@@ -926,8 +946,9 @@ async function prepararFoto(file, max = 1600) {
   return new Promise((ok, erro) => c.toBlob(b => b ? ok(b) : erro(new Error("Não deu para preparar a foto.")), "image/jpeg", 0.8));
 }
 const nomeArquivo = t => String(t || "").normalize("NFC").replace(/[\\/:*?"<>|#%{}~&]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
-const GAL = {lista: [], titulo: ""};
-async function abrirGaleria(ref, titulo) {
+const GAL = {lista: [], titulo: "", ctx: null};
+async function abrirGaleria(ref, titulo, ctx = null) {
+  GAL.ref = ref; GAL.ctx = ctx && App.store.removerFoto && pode(ctx.tela || "expedicao", "editar") ? ctx : null;
   const d = $("#galeria"), corpo = $("#gal-corpo");
   $("#gal-tit").textContent = "Fotos"; $("#gal-sub").textContent = titulo || ""; corpo.className = "gal-corpo";
   corpo.innerHTML = `<div class="vazio">Carregando as fotos…</div>`;
@@ -948,6 +969,19 @@ function desenharGaleria() {
     b.onclick = () => verFoto(k); corpo.appendChild(b);
   });
 }
+async function removerFotoGal(b, k) {
+  if (!b.dataset.conf) { b.dataset.conf = "1"; b.textContent = "Toque de novo para remover"; b.classList.add("confirmar"); setTimeout(() => { if (b.isConnected) { delete b.dataset.conf; b.textContent = "Remover esta foto"; b.classList.remove("confirmar"); } }, 4000); return; }
+  const f = GAL.lista[k], c = GAL.ctx; b.disabled = true;
+  try {
+    const novo = await App.store.removerFoto(GAL.ref, f, c.obj, c.indice);
+    c.obj.Fotos = novo; GAL.ref = novo;
+    Hist.registrar("Removeu foto", c.tela || "expedicao", `${f.nome} · de ${GAL.titulo}`);
+    GAL.lista.splice(k, 1); toast("Foto removida do lançamento. O arquivo ficou no OneDrive com REMOVIDA_ no nome.");
+    if (c.depois) c.depois();
+    if (!GAL.lista.length) { $("#gal-fechar").click(); return; }
+    $("#gal-tit").textContent = `${GAL.lista.length} foto${GAL.lista.length > 1 ? "s" : ""}`; desenharGaleria();
+  } catch (e) { toast(e.message, {erro: true}); b.disabled = false; }
+}
 function fotoQuebrada(el, f) {
   el.classList.add("quebrada");
   el.innerHTML = `<span>Não deu para mostrar ${esc(f.nome)} aqui.${f.web ? " Use Abrir no OneDrive." : ""}</span>`;
@@ -956,9 +990,9 @@ function verFoto(k) {
   const f = GAL.lista[k], corpo = $("#gal-corpo"); corpo.className = "gal-corpo uma";
   corpo.innerHTML = `<div class="gal-grande"><img src="${esc(f.grande)}" alt="${esc(f.nome)}"><div class="gal-nav">
     <button type="button" data-v="todas">Todas as fotos</button>${GAL.lista.length > 1 ? `<button type="button" data-v="ant">Anterior</button><button type="button" data-v="prox">Próxima</button>` : ""}
-    ${f.web ? `<a href="${esc(f.web)}" target="_blank" rel="noopener">Abrir no OneDrive</a>` : ""}<span style="align-self:center;color:var(--nevoa);font-size:13px">${k + 1} de ${GAL.lista.length}</span></div></div>`;
+    ${f.web ? `<a href="${esc(f.web)}" target="_blank" rel="noopener">Abrir no OneDrive</a>` : ""}${GAL.ctx && f.id ? `<button type="button" class="gal-remover" data-v="remover">Remover esta foto</button>` : ""}<span style="align-self:center;color:var(--nevoa);font-size:13px">${k + 1} de ${GAL.lista.length}</span></div></div>`;
   const gi = $(".gal-grande img", corpo); if (gi) gi.onerror = () => { const d = document.createElement("div"); d.className = "gal-foto quebrada"; fotoQuebrada(d, f); gi.replaceWith(d); };
-  $$(".gal-nav button", corpo).forEach(b => b.onclick = () => b.dataset.v === "todas" ? desenharGaleria() : verFoto((k + (b.dataset.v === "prox" ? 1 : -1) + GAL.lista.length) % GAL.lista.length));
+  $$(".gal-nav button", corpo).forEach(b => b.onclick = () => b.dataset.v === "remover" ? removerFotoGal(b, k) : b.dataset.v === "todas" ? desenharGaleria() : verFoto((k + (b.dataset.v === "prox" ? 1 : -1) + GAL.lista.length) % GAL.lista.length));
 }
 const LIXO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/></svg>`;
 const CAM = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.2-1.8A2 2 0 0 1 10 3.3h4a2 2 0 0 1 1.7.9L16.9 6h1.6A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>`;
@@ -1484,9 +1518,19 @@ const Antigo = {
     for (const id of ref.slice(4).split(",").filter(Boolean)) {
       const x = await this.req("GET", `/drives/${this.drive}/items/${id}?$expand=thumbnails`);
       const t = (x.thumbnails || [])[0] || {};
-      out.push({nome: x.name, mini: (t.large || t.medium || {}).url || x["@microsoft.graph.downloadUrl"], grande: x["@microsoft.graph.downloadUrl"] || (t.large || {}).url, web: x.webUrl});
+      out.push({id, nome: x.name, mini: (t.large || t.medium || {}).url || x["@microsoft.graph.downloadUrl"], grande: x["@microsoft.graph.downloadUrl"] || (t.large || {}).url, web: x.webUrl});
     }
     return out;
+  },
+  /* tira uma foto do lançamento: o arquivo fica no OneDrive com "REMOVIDA_" no nome (para conferência) */
+  async removerFoto(ref, foto, obj, indice) {
+    await this.abrir();
+    const ids = ref.slice(4).split(",").filter(Boolean).filter(x => x !== foto.id), novo = ids.length ? "ant:" + ids.join(",") : "";
+    const cel = String(indice || obj.__i || "").split("!")[1];
+    if (!cel) throw new Error("Não achei o registro deste lançamento na aba Site.");
+    await this.marcarLog(obj.Data, cel, {"Fotos (ids)": novo});
+    if (!/^REMOVIDA_/.test(foto.nome)) await this.req("PATCH", `/drives/${this.drive}/items/${foto.id}`, {name: "REMOVIDA_" + foto.nome}).catch(() => {});
+    return novo || null;
   },
 };
 
@@ -1829,10 +1873,12 @@ const Fila = {
           if (blobs.length) it.obj.Fotos = await App.store.subirFotos(blobs, it.obj.__pasta || "sem data", null, {data: it.obj.Data, pessoa: it.obj.Pessoa, placa: it.obj.Placa, tipo: it.obj.Tipo, produto: it.obj.Produto});
           const chave = it.obj.__fotos; delete it.obj.__fotos; delete it.obj.__pasta;
           await App.store.adicionar(it.t, it.obj); ok++;
+          Hist.registrar("Lançou (sem internet, enviado depois)", ({tbExpedicao: "expedicao", tbProducao: "producao", tbEmbalagens: "embalagens", tbLeituras: "leituras", tbAjustes: "ajustes"})[it.t] || "", `${it.obj.Tipo || it.obj.Turno || it.obj.Movimento || ""} · ${it.obj.Pessoa || it.obj.Produto || it.obj.Material || it.obj.Equipamento || ""}`, "dia " + isoBR(it.obj.Data));
           try { await FotoDB.del(chave); } catch {}
           continue;
         }
         await App.store.adicionar(it.t, it.obj); ok++;
+        Hist.registrar("Lançou (sem internet, enviado depois)", ({tbExpedicao: "expedicao", tbProducao: "producao", tbEmbalagens: "embalagens", tbLeituras: "leituras", tbAjustes: "ajustes"})[it.t] || "", `${it.obj.Tipo || it.obj.Turno || it.obj.Movimento || ""} · ${it.obj.Pessoa || it.obj.Produto || it.obj.Material || it.obj.Equipamento || ""} · ${it.obj.Produto || ""}`, "dia " + isoBR(it.obj.Data));
       }
       catch (e) { resto.push(it); if (e.rede) { resto.push(...f.slice(f.indexOf(it) + 1)); break; } }
     }
@@ -1855,8 +1901,9 @@ async function gravar(t, obj, listaEl, descricao, {silencioso = false} = {}) {
   try {
     const r = await App.store.adicionar(t, obj);
     registrarUltimo(listaEl, t, r.indice, obj, descricao);
+    Hist.registrar("Lançou", TELA_DA_LISTA[listaEl] || "", descricao, obj.Data ? "dia " + isoBR(obj.Data) : "");
     if (!silencioso) toast(App.modo === "planilha" ? `Lançado na planilha: ${descricao}` : `Lançado (demonstração): ${descricao}`,
-      {acao: !pode(TELA_DA_LISTA[listaEl], "desfazer") ? null : async () => { try { await App.store.desfazer(t, r.indice, obj); if (t === "tbExpedicao") Carga.anotar(obj, -1); if (t === "tbLeituras") LeitDia.carregar(); toast("Lançamento desfeito."); removerUltimo(listaEl, r.indice, t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); } }});
+      {acao: !pode(TELA_DA_LISTA[listaEl], "desfazer") ? null : async () => { try { await App.store.desfazer(t, r.indice, obj); Hist.registrar("Desfez", TELA_DA_LISTA[listaEl] || "", descricao); if (t === "tbExpedicao") Carga.anotar(obj, -1); if (t === "tbLeituras") LeitDia.carregar(); toast("Lançamento desfeito."); removerUltimo(listaEl, r.indice, t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); } }});
     return true;
   } catch (e) {
     if (e.rede) { Fila.guardar(t, obj); obj.__pendente = true; toast("Sem internet: lançamento guardado neste aparelho e será enviado sozinho."); return true; }
@@ -1881,7 +1928,7 @@ function desenharUltimos(el) {
     const acoes = document.createElement("div"); acoes.className = "acoes";
     if (u.obj && u.obj.Fotos) {
       const c = document.createElement("button"); c.type = "button"; c.className = "cam"; c.innerHTML = CAM; c.title = "Ver fotos";
-      c.setAttribute("aria-label", "Ver fotos: " + u.desc); c.onclick = () => abrirGaleria(u.obj.Fotos, u.desc); acoes.appendChild(c);
+      c.setAttribute("aria-label", "Ver fotos: " + u.desc); c.onclick = () => abrirGaleria(u.obj.Fotos, u.desc, {obj: u.obj, indice: u.indice, tela: TELA_DA_LISTA[el], depois: () => { u.desc = u.desc.replace(/ · \d+ fotos?$/, ""); desenharUltimos(el); }}); acoes.appendChild(c);
     }
     if (est && pode(TELA_DA_LISTA[el], "editar")) {
       const e = document.createElement("button"); e.type = "button"; e.className = "lapis"; e.innerHTML = LAPIS;
@@ -1891,7 +1938,7 @@ function desenharUltimos(el) {
     }
     if (k === 0 && pode(TELA_DA_LISTA[el], "desfazer")) {
       const b = document.createElement("button"); b.type = "button"; b.textContent = "Desfazer";
-      b.onclick = async () => { b.disabled = true; try { await App.store.desfazer(u.t, u.indice, u.obj); if (u.t === "tbExpedicao") Carga.anotar(u.obj, -1); if (u.t === "tbLeituras") LeitDia.carregar(); if (est && est.editando === u) cancelarEdicao(el); toast("Lançamento desfeito."); removerUltimo(el, u.indice, u.t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); b.disabled = false; } };
+      b.onclick = async () => { b.disabled = true; try { await App.store.desfazer(u.t, u.indice, u.obj); Hist.registrar("Desfez", TELA_DA_LISTA[el] || "", u.desc); if (u.t === "tbExpedicao") Carga.anotar(u.obj, -1); if (u.t === "tbLeituras") LeitDia.carregar(); if (est && est.editando === u) cancelarEdicao(el); toast("Lançamento desfeito."); removerUltimo(el, u.indice, u.t); atualizarX(); } catch (e) { toast(e.message, {erro: true}); b.disabled = false; } };
       acoes.appendChild(b);
     }
     d.appendChild(acoes);
@@ -1943,6 +1990,7 @@ async function cancelarDoResumo(b, r, doDia, tot) {
   b.disabled = true;
   try {
     await App.store.desfazer("tbExpedicao", r.__i, r);
+    Hist.registrar("Cancelou", "expedicao", descX(r), "pelo Resumo do dia · dia " + isoBR(r.Data));
     toast(`Lançamento cancelado: ${descX(r)}`);
     if (Carga.dia === r.Data) Carga.carregar(r.Data, true);
     await desenharHoje();
@@ -1973,6 +2021,7 @@ async function salvarEdicao(el, obj, desc) {
   const est = EDITAVEIS[el](), u = est.editando;
   try {
     const r = await App.store.editar(u.t, u.indice, u.obj, obj);
+    Hist.registrar("Editou", TELA_DA_LISTA[el] || "", `${u.desc} → ${desc}`, obj.Data ? "dia " + isoBR(obj.Data) : "");
     const indiceAntigo = u.indice; if (r && r.indice !== undefined) u.indice = r.indice;
     u.obj = obj; u.desc = desc;
     // a mesma linha pode estar na lista de últimos lançados (lançada aqui e editada pelo Resumo)
@@ -2170,6 +2219,7 @@ async function mudarPessoa(nome, mud, {desfazendo = false} = {}) {
   $$("#menu-pessoa button").forEach(b => b.disabled = true);
   try {
     await App.store.alterarPessoa(nome, mud);
+    Hist.registrar(mud.Ativo === "Não" ? "Desativou pessoa" : mud.Ativo === "Sim" ? "Ativou pessoa" : "Mudou pessoa", "cadastro", nome, Object.entries(mud).map(([k, v]) => `${k}: ${v}`).join(", "));
     Object.assign(p, mud);
     if (App.modo === "planilha") LS.set("gm_cad_cache", App.cad);
     if (mud.Ativo === "Não" && X.pessoa === nome) { X.pessoa = null; atualizarX(); }
@@ -2385,6 +2435,7 @@ async function salvarNovo() {
     const obj = {ID: id, Nome: nome, "Código": cod || null, Tipo: NOVO.tipo, "Entra no ranking": NOVO.tipo === "Motorista" ? "Sim" : "Não", "Na tela": "Sim", Ativo: "Sim"};
     const gravar = App.modo === "planilha" && cod && /^\d+$/.test(cod) ? {...obj, "Código": "'" + cod} : obj;  // mantém zeros à esquerda (003)
     await App.store.adicionar("tbPessoas", gravar);
+    Hist.registrar("Cadastrou pessoa", "cadastro", `${nome} (${NOVO.tipo})`, cod ? "código " + cod : "");
     App.cad.tbPessoas = [...atuais.filter(p => p.Nome), {ID: id, Nome: nome, "Código": cod || null, Tipo: NOVO.tipo, "Na tela": "Sim", Ativo: "Sim"}];
     if (App.modo === "planilha") LS.set("gm_cad_cache", App.cad);
     abrirNovo(false); $("#x-busca").value = "";
@@ -2802,7 +2853,7 @@ async function desenharHoje() {
         `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button><button type="button" class="lixo-claro" data-k="${k}" title="Cancelar lançamento" aria-label="Cancelar: ${esc(descX(r))}">${LIXO}</button>` : ""}</td></tr>`).join("")
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
     $$("#h-lista button.lapis-claro").forEach(b => { b.hidden = !pode("expedicao", "editar"); b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]); });
-    $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r)); });
+    $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r), r.__i != null ? {obj: r, indice: r.__i, tela: "expedicao", depois: () => { Antigo.logCache = {}; }} : null); });
     $$("#h-lista button.lixo-claro").forEach(b => { b.hidden = !pode("expedicao", "desfazer"); b.onclick = () => cancelarDoResumo(b, doDia[Number(b.dataset.k)], doDia, tot); });
     const mm = {}, ruins = doDia.filter(r => RUINS.includes(r.Tipo));
     let aval = null, nota = "";
@@ -3148,7 +3199,7 @@ function aplicarAcesso() {
   const adm = Acesso.admin();
   $$("nav.abas button").forEach(b => {
     const t = b.dataset.tela;
-    b.hidden = t === "config" || t === "admin" ? !adm : !pode(t, "ver");
+    b.hidden = t === "config" || t === "admin" || t === "historico" ? !adm : !pode(t, "ver");
   });
   $("#usuario-nome").textContent = Acesso.sessao ? Acesso.sessao.nome.split(" ")[0] : "";
   $("#usuario-nome").title = Acesso.sessao ? `${Acesso.sessao.nome} (${Acesso.sessao.login})` : "";
@@ -3161,7 +3212,7 @@ function aplicarAcesso() {
   const atual = LS.get("gm_tela", "expedicao");
   if (!telaPermitida(atual)) { const p = primeiraTela(); if (p) irPara(p); }
 }
-const telaPermitida = t => t === "config" || t === "admin" ? Acesso.admin() : pode(t, "ver");
+const telaPermitida = t => t === "config" || t === "admin" || t === "historico" ? Acesso.admin() : pode(t, "ver");
 const primeiraTela = () => [...TELAS_ACESSO.map(t => t.id), "admin", "config"].find(telaPermitida) || null;
 /* trava do botão Lançar/Salvar de cada tela */
 function travaLancar(tela, editando) {
@@ -3219,6 +3270,7 @@ async function mudarUsuario(k, f, msg) {
       if (!admins.length) throw new Error("Precisa ficar pelo menos um administrador ativo.");
     });
     if (Acesso.sessao && login === Acesso.sessao.login) { Acesso.restaurar(); aplicarAcesso(); }
+    Hist.registrar("Alterou usuário", "admin", msg);
     toast(msg);
   } catch (e) { toast(e.message, {erro: true}); }
   desenharAdmin();
@@ -3233,7 +3285,7 @@ async function acaoUsuario(k, a, btn) {
     try {
       await Acesso.salvar(d => { d.usuarios = d.usuarios.filter(x => x.login !== u.login);
         if (!d.usuarios.some(x => x.ativo !== false && (d.perfis.find(p => p.id === x.perfil) || {}).admin)) throw new Error("Precisa ficar pelo menos um administrador ativo."); });
-      toast(`${u.nome} excluído.`);
+      toast(`${u.nome} excluído.`); Hist.registrar("Excluiu usuário", "admin", `${u.nome} (${u.login})`);
     } catch (e) { toast(e.message, {erro: true}); }
     desenharAdmin();
   }
@@ -3244,7 +3296,7 @@ async function salvarSenhaAdmin() {
   if (s1 !== s2) return toast("As duas senhas estão diferentes.", {erro: true});
   const s = await Acesso.novaSenha(s1), login = ADM.senhaDe;
   try { await Acesso.salvar(d => { const u = d.usuarios.find(x => x.login === login); if (!u) throw new Error("Esse usuário não existe mais."); Object.assign(u, s); });
-    $("#ad-senha-box").hidden = true; toast("Senha trocada."); } catch (e) { toast(e.message, {erro: true}); }
+    $("#ad-senha-box").hidden = true; toast("Senha trocada."); Hist.registrar("Trocou senha de usuário", "admin", login); } catch (e) { toast(e.message, {erro: true}); }
 }
 async function criarUsuario() {
   const nome = $("#ad-novo-nome").value.trim(), login = normLogin($("#ad-novo-login").value), s1 = $("#ad-novo-senha").value, perfil = $("#ad-novo-perfil").value;
@@ -3255,6 +3307,7 @@ async function criarUsuario() {
   try {
     await Acesso.salvar(d => { if (d.usuarios.some(u => u.login === login)) throw new Error(`Já existe o usuário ${login}.`); d.usuarios.push({login, nome, perfil, ativo: true, ...s, criado: new Date().toISOString()}); });
     ["#ad-novo-nome", "#ad-novo-login", "#ad-novo-senha"].forEach(x => $(x).value = ""); toast(`Usuário ${login} criado.`);
+    Hist.registrar("Criou usuário", "admin", `${nome} (${login})`, "perfil: " + ((Acesso.perfil(perfil) || {}).nome || perfil));
   } catch (e) { toast(e.message, {erro: true}); }
   desenharAdmin();
 }
@@ -3268,6 +3321,7 @@ async function salvarPerfil() {
       if (id === "admin" && !admin) throw new Error("O perfil Administrador continua sendo administrador.");
       Object.assign(p, {nome, admin, perm}); });
     Acesso.restaurar(); aplicarAcesso(); toast(`Perfil "${nome}" salvo.`);
+    Hist.registrar("Alterou perfil", "admin", nome, admin ? "administrador" : TELAS_ACESSO.filter(t => perm[t.id].ver).map(t => `${t.nome}: ${t.acoes.filter(a => perm[t.id][a]).map(a => NOMES_ACOES[a]).join("/")}`).join(" · ").slice(0, 290));
   } catch (e) { toast(e.message, {erro: true}); }
   desenharAdmin();
 }
@@ -3279,7 +3333,7 @@ async function novoPerfil() {
 async function excluirPerfil() {
   const id = ADM.perfilAberto;
   try { await Acesso.salvar(d => { if (d.usuarios.some(u => u.perfil === id)) throw new Error("Tem usuários neste perfil. Mude o perfil deles antes."); d.perfis = d.perfis.filter(p => p.id !== id); });
-    ADM.perfilAberto = null; toast("Perfil excluído."); } catch (e) { toast(e.message, {erro: true}); }
+    ADM.perfilAberto = null; toast("Perfil excluído."); Hist.registrar("Excluiu perfil", "admin", id); } catch (e) { toast(e.message, {erro: true}); }
   desenharAdmin();
 }
 async function trocarMinhaSenha() {
@@ -3298,6 +3352,54 @@ async function trocarMinhaSenha() {
 }
 function abrirMinhaSenha() { const d = $("#minha-senha"); ["#mi-atual", "#mi-nova", "#mi-nova2"].forEach(x => $(x).value = ""); try { d.showModal(); } catch { d.setAttribute("open", ""); } $("#mi-atual").focus(); }
 function fecharMinhaSenha() { const d = $("#minha-senha"); try { d.close(); } catch { d.removeAttribute("open"); } }
+
+/* ======================================================================
+   Histórico: quem lançou, editou, desfez, cancelou, removeu foto, mudou cadastro
+   ====================================================================== */
+const NOMES_TELAS = {expedicao: "Expedição", producao: "Produção", embalagens: "Embalagens", leituras: "Leituras", ajustes: "Ajustes", hoje: "Resumo do dia", admin: "Administração", login: "Acesso", cadastro: "Cadastro"};
+const Hist = {
+  registrar(acao, tela, desc, extra = "") {
+    const ev = {acao, tela, desc: String(desc || "").slice(0, 420), extra: String(extra || "").slice(0, 300)};
+    if (PROXY()) { Acesso.api("POST", "/historico", ev).catch(() => {}); return; }
+    const l = LS.get("gm_hist", []), s = Acesso.sessao || {};
+    l.push({t: new Date().toISOString(), u: s.login || "", n: s.nome || "", a: acao, tl: tela, d: ev.desc, x: ev.extra});
+    LS.set("gm_hist", l.slice(-3000));
+  },
+  async listar(de, ate) {
+    if (PROXY()) return Acesso.api("GET", `/admin/historico?de=${de}&ate=${ate}`);
+    const ini = new Date(de + "T00:00:00"), fim = new Date(ate + "T23:59:59");
+    return LS.get("gm_hist", []).filter(e => new Date(e.t) >= ini && new Date(e.t) <= fim).sort((a, b) => (a.t < b.t ? 1 : -1));
+  },
+};
+const HI = {lista: []};
+async function desenharHistorico() {
+  const de = $("#hi-de").value, ate = $("#hi-ate").value || de, box = $("#hi-tabela");
+  if (!de) return;
+  $("#hi-info").textContent = "carregando…";
+  try { HI.lista = await Hist.listar(de, ate); } catch (e) { $("#hi-info").textContent = ""; box.innerHTML = `<tr><td class="vazio">${esc(e.message)}</td></tr>`; return; }
+  const us = [...new Set(HI.lista.map(e => e.n || e.u).filter(Boolean))].sort(), ac = [...new Set(HI.lista.map(e => e.a))].sort();
+  const su = $("#hi-usuario"), sa = $("#hi-acao"), vu = su.value, va = sa.value;
+  su.innerHTML = `<option value="">Todos</option>` + us.map(u => `<option${u === vu ? " selected" : ""}>${esc(u)}</option>`).join("");
+  sa.innerHTML = `<option value="">Todas</option>` + ac.map(a => `<option${a === va ? " selected" : ""}>${esc(a)}</option>`).join("");
+  filtrarHistorico();
+}
+function filtrarHistorico() {
+  const u = $("#hi-usuario").value, a = $("#hi-acao").value, q = $("#hi-busca").value.trim().toLowerCase();
+  const l = HI.lista.filter(e => (!u || (e.n || e.u) === u) && (!a || e.a === a) && (!q || `${e.d} ${e.x}`.toLowerCase().includes(q)));
+  HI.vis = l;
+  const quando = t => { const d = new Date(t); return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${d.toLocaleTimeString("pt-BR")}`; };
+  const cls = a => /Cancel|Desfez|Removeu|Excluiu|Desativ/.test(a) ? "ruim" : /Edit|Alter|Mudou|Trocou/.test(a) ? "perda" : /Lan|Cri|Cadastr|Ativ/.test(a) ? "bom" : "";
+  $("#hi-info").textContent = `${l.length} registro(s)${l.length !== HI.lista.length ? ` de ${HI.lista.length}` : ""}`;
+  $("#hi-tabela").innerHTML = l.length ? `<tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Tela</th><th>O quê</th></tr>` +
+    l.map(e => `<tr><td class="hora">${quando(e.t)}</td><td>${esc(e.n || e.u || "sistema")}</td><td><span class="tag ${cls(e.a)}">${esc(e.a)}</span></td><td>${esc(NOMES_TELAS[e.tl] || e.tl || "")}</td><td>${esc(e.d)}${e.x ? `<small class="hist-x">${esc(e.x)}</small>` : ""}</td></tr>`).join("")
+    : `<tr><td class="vazio">Nenhum registro nesse período.</td></tr>`;
+}
+function baixarHistorico() {
+  const l = HI.vis || [];
+  const csv = "\ufeff" + [["Quando", "Usuário", "Login", "Ação", "Tela", "O quê", "Detalhe"], ...l.map(e => [new Date(e.t).toLocaleString("pt-BR"), e.n, e.u, e.a, NOMES_TELAS[e.tl] || e.tl, e.d, e.x])]
+    .map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = `historico-${$("#hi-de").value}-a-${$("#hi-ate").value}.csv`; a.click();
+}
 
 function montarTudo() { montarExpedicao(); montarProducao(); montarEmbalagens(); montarLeituras(); montarAjustes(); }
 async function recarregar() {
@@ -3331,6 +3433,7 @@ function irPara(tela) {
   if (tela === "expedicao") Carga.carregar($("#x-data").value, true);
   if (tela === "leituras") LeitDia.carregar();
   if (tela === "admin") Acesso.carregar().then(desenharAdmin).catch(e => toast(e.message, {erro: true}));
+  if (tela === "historico") desenharHistorico();
   LS.set("gm_tela", tela); window.scrollTo(0, 0);
 }
 document.addEventListener("DOMContentLoaded", async () => {
@@ -3421,6 +3524,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   });
   $("#en-form").addEventListener("submit", enviarEntrada);
+  $("#hi-de").value = $("#hi-ate").value = hojeISO();
+  $("#hi-atualizar").onclick = desenharHistorico; $("#hi-csv").onclick = baixarHistorico;
+  ["#hi-de", "#hi-ate"].forEach(x => $(x).addEventListener("change", () => { if ($("#hi-ate").value < $("#hi-de").value) $("#hi-ate").value = $("#hi-de").value; desenharHistorico(); }));
+  ["#hi-usuario", "#hi-acao"].forEach(x => $(x).addEventListener("change", filtrarHistorico)); $("#hi-busca").addEventListener("input", filtrarHistorico);
   $("#en-ms-botao").onclick = () => {
     if (!PROXY()) return Planilha.entrar().catch(e => { $("#en-msg").textContent = e.message; });
     $("#en-ms-botao").hidden = true; $("#en-msg").textContent = "";
