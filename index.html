@@ -218,10 +218,14 @@ td.acao > * + *{margin-left:4px}
 .aviso-edicao button{background:#fff;border:1px solid #C9A227;color:#5C4300;border-radius:var(--r-s);padding:6px 12px;font-weight:600;min-height:40px;flex-shrink:0}
 .btn-lancar.salvar{background:#C98F00}
 table.dados th.acao-1,table.dados td.acao-1{width:52px;padding:4px 6px;text-align:center}
-table.dados th.acao,table.dados td.acao{width:96px;text-align:right;padding:4px 6px}
+table.dados th.acao,table.dados td.acao{width:140px;text-align:right;padding:4px 6px}
 .lapis-claro{width:40px;height:36px;display:inline-grid;place-items:center;border:1px solid var(--linha);background:#fff;color:var(--aco-2);border-radius:var(--r-s);padding:0}
 .lapis-claro svg{width:17px;height:17px}
 .lapis-claro:hover,.lapis-claro:focus-visible{background:var(--sinal);border-color:var(--sinal);color:var(--aco)}
+.lixo-claro{width:40px;height:36px;display:inline-grid;place-items:center;border:1px solid var(--linha);background:#fff;color:var(--erro);border-radius:var(--r-s);padding:0;margin-left:4px}
+.lixo-claro svg{width:17px;height:17px}
+.lixo-claro:hover,.lixo-claro:focus-visible{background:var(--erro-claro);border-color:var(--erro)}
+.lixo-claro.confirmar{background:var(--erro);border-color:var(--erro);color:#fff}
 .btn-lancar.salvar:hover{background:#A87700}
 #barra button.salvar{background:#C98F00}
 .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:700;background:var(--ciano-claro);color:var(--ciano-escuro)}
@@ -956,6 +960,7 @@ function verFoto(k) {
   const gi = $(".gal-grande img", corpo); if (gi) gi.onerror = () => { const d = document.createElement("div"); d.className = "gal-foto quebrada"; fotoQuebrada(d, f); gi.replaceWith(d); };
   $$(".gal-nav button", corpo).forEach(b => b.onclick = () => b.dataset.v === "todas" ? desenharGaleria() : verFoto((k + (b.dataset.v === "prox" ? 1 : -1) + GAL.lista.length) % GAL.lista.length));
 }
+const LIXO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/></svg>`;
 const CAM = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.2-1.8A2 2 0 0 1 10 3.3h4a2 2 0 0 1 1.7.9L16.9 6h1.6A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>`;
 /* ======================================================================
    Modelo antigo (11.xlsx): o site lê e grava direto no arquivo do mês
@@ -1920,6 +1925,29 @@ function descX(o) {
   const kg = (produtoDe(o.Produto) || {}).Unidade === "kg";
   return `${o.Tipo}${o.Tipo === "Volta ruim" && o.Motivo === "Troca" ? " (troca)" : ""} · ${o.Pessoa}${o.Placa ? " · placa " + o.Placa : ""} · ${o.Produto} · ${fmt(totalLinha(o), kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
 }
+/* Cancela (zera) um lançamento de expedição direto do Resumo do dia: primeiro toque pede confirmação, o segundo apaga na planilha. */
+async function cancelarDoResumo(b, r, doDia, tot) {
+  if (r.Tipo === "Saída" && tipoPessoa(r.Pessoa) === "Motorista") {
+    // sem esta saída, as voltas do mesmo motorista, produto e dia não podem ficar maiores que a carga
+    const mesmo = doDia.filter(x => x.Pessoa === r.Pessoa && x.Produto === r.Produto && x.Data === r.Data);
+    const carga = mesmo.filter(x => x.Tipo === "Saída").reduce((a, x) => a + tot(x), 0) - tot(r);
+    const voltas = mesmo.filter(x => VOLTAS.includes(x.Tipo)).reduce((a, x) => a + tot(x), 0);
+    if (voltas > carga) return toast(`Não dá para cancelar esta saída: ${r.Pessoa} ficaria com carga de ${fmt(carga)} de ${r.Produto} e já tem ${fmt(voltas)} de volta lançada. Cancele as voltas antes.`, {erro: true, ms: 9000});
+  }
+  if (!b.dataset.conf) {
+    b.dataset.conf = "1"; b.classList.add("confirmar"); b.title = "Toque de novo para cancelar";
+    toast(`Toque de novo no lixo para cancelar: ${descX(r)}`, {ms: 4000});
+    setTimeout(() => { delete b.dataset.conf; b.classList.remove("confirmar"); b.title = "Cancelar lançamento"; }, 4000);
+    return;
+  }
+  b.disabled = true;
+  try {
+    await App.store.desfazer("tbExpedicao", r.__i, r);
+    toast(`Lançamento cancelado: ${descX(r)}`);
+    if (Carga.dia === r.Data) Carga.carregar(r.Data, true);
+    await desenharHoje();
+  } catch (e) { toast(e.message, {erro: true, ms: 9000}); b.disabled = false; }
+}
 /* Abre na tela de Expedição um lançamento lido da planilha no Resumo do dia; ao salvar ou cancelar, volta ao Resumo. */
 function editarDoResumo(r) {
   const obj = {...r}; delete obj.__i;
@@ -2771,10 +2799,11 @@ async function desenharHoje() {
     const colData = r => P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`;
     $("#h-lista").innerHTML = doDia.length ? `<tr>${P.umDia ? "" : "<th>Data</th>"}<th>Pessoa</th><th>Tipo</th><th>Produto</th><th class="n">Qtd</th><th>Motivo</th><th class="acao"><span class="sr">Fotos e editar</span></th></tr>` +
       doDia.map((r, k) => `<tr>${colData(r)}<td>${esc(r.Pessoa)}${r.Placa ? `<small class="placa">${esc(r.Placa)}</small>` : ""}</td><td>${tagTipo(r.Tipo)}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td>` +
-        `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button>` : ""}</td></tr>`).join("")
+        `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button><button type="button" class="lixo-claro" data-k="${k}" title="Cancelar lançamento" aria-label="Cancelar: ${esc(descX(r))}">${LIXO}</button>` : ""}</td></tr>`).join("")
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
     $$("#h-lista button.lapis-claro").forEach(b => { b.hidden = !pode("expedicao", "editar"); b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]); });
     $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r)); });
+    $$("#h-lista button.lixo-claro").forEach(b => { b.hidden = !pode("expedicao", "desfazer"); b.onclick = () => cancelarDoResumo(b, doDia[Number(b.dataset.k)], doDia, tot); });
     const mm = {}, ruins = doDia.filter(r => RUINS.includes(r.Tipo));
     let aval = null, nota = "";
     if (App.store === Antigo) { try { aval = await Antigo.avaliacao(P.de, P.ate); } catch (e) { nota = "Não deu para ler a Avaliação das Devoluções: " + e.message; } }
