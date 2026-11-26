@@ -761,6 +761,13 @@ const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
+/* configuração já gravada na versão publicada (GitHub Pages): ninguém precisa preencher Configurar */
+const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG"};
+if (CFG_PADRAO) {
+  const c = LS.get("gm_cfg", {});
+  if (!c.clientId) LS.set("gm_cfg", {...CFG_PADRAO, ...c});
+  if (LS.get("gm_modo", null) == null) LS.set("gm_modo", "planilha");
+}
 function toast(msg, {erro = false, acao = null, rotulo = "Desfazer", ms = 6000} = {}) {
   const t = $("#toast"); t.className = erro ? "erro" : ""; t.innerHTML = `<span>${esc(msg)}</span>`;
   if (acao) { const b = document.createElement("button"); b.textContent = rotulo; b.onclick = () => { t.classList.remove("mostra"); acao(); }; t.appendChild(b); }
@@ -895,9 +902,15 @@ const Antigo = {
     if (this.raiz) return;
     const link = (this.cfg().pasta || "").trim();
     if (!link) throw new Error('Falta o link da pasta "EXPEDIÇÃO E PRODUÇÃO GELO" em Configurar.');
-    const it = await this.req("GET", `/shares/${codShare(link)}/driveItem?$select=id,name,parentReference,folder`);
-    if (!it.folder) throw new Error("O link de Configurar precisa ser da PASTA (EXPEDIÇÃO E PRODUÇÃO GELO), não de um arquivo.");
-    this.raiz = it.id; this.drive = it.parentReference.driveId; this.pasta = it.id;
+    let it = await this.req("GET", `/shares/${codShare(link)}/driveItem?$select=id,name,parentReference,folder`);
+    const drive = it.parentReference.driveId;
+    if (!it.folder) {
+      // link de um arquivo do mês (ex.: 2026/11.xlsx): sobe dois níveis até a pasta EXPEDIÇÃO E PRODUÇÃO GELO
+      const ano = await this.req("GET", `/drives/${drive}/items/${it.parentReference.id}?$select=id,name,parentReference`);
+      if (!/^\d{4}$/.test(ano.name)) throw new Error("O link precisa ser da pasta EXPEDIÇÃO E PRODUÇÃO GELO ou de um arquivo do mês dentro da pasta do ano (ex.: 2026/11.xlsx).");
+      it = await this.req("GET", `/drives/${drive}/items/${ano.parentReference.id}?$select=id,name,parentReference,folder`);
+    }
+    this.raiz = it.id; this.drive = drive; this.pasta = it.id;
   },
   /* arquivo do mês da data: AAAA/MM.xlsx */
   async arquivo(dataISO) {
