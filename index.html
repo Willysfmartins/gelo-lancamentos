@@ -352,6 +352,7 @@ label.check small{flex-basis:100%;font-weight:400;color:var(--nevoa);margin-left
 p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 .partes{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px;margin-top:6px}
 .partes label.check{font-weight:500}
+#t-hoje.carregando .bloco[data-parte] .rolagem{opacity:.35;transition:opacity .2s}
 .passos-ms{padding-left:20px;line-height:1.7;margin:6px 0}
 .codigo-ms{font-family:var(--fc);font-size:28px;letter-spacing:3px;background:var(--sinal-claro);padding:2px 10px;border-radius:var(--r-s);user-select:all}
 .ok-ms{color:var(--ok);font-weight:700}
@@ -1038,9 +1039,29 @@ const Antigo = {
   /* lê uma aba (valores e fórmulas), com cache curto para não repetir leitura */
   async folha(dataISO, aba, faixa, {fresco = false} = {}) {
     const arq = await this.arquivo(dataISO), k = `${arq.mes}|${aba}`, c = this.folhas[k];
-    if (!fresco && c && Date.now() - c.em < 20000) return c;
-    const r = await this.req("GET", `${this.ws(arq, aba)}/range(address='${faixa}')?$select=values,formulas`);
-    return (this.folhas[k] = {arq, aba, v: r.values, f: r.formulas, em: Date.now()});
+    // dias passados quase não mudam: guarda por 2 min; o dia de hoje e a aba Produção, 20 s
+    const ttl = /^\d+$/.test(aba) && dataISO < hojeISO() ? 120000 : 20000;
+    if (!fresco && c) { if (c.p) return c.p; if (Date.now() - c.em < ttl) return c; }
+    const p = this.req("GET", `${this.ws(arq, aba)}/range(address='${faixa}')?$select=values,formulas`)
+      .then(r => { const v = {arq, aba, v: r.values, f: r.formulas, em: Date.now()}; if (!this.folhas[k] || this.folhas[k].p === p) this.folhas[k] = v; return v; })
+      .catch(e => { if (this.folhas[k] && this.folhas[k].p === p) delete this.folhas[k]; throw e; });
+    this.folhas[k] = {p};
+    return p;
+  },
+  /* lê as abas de vários dias em paralelo (6 por vez), mostrando o andamento no Resumo */
+  async preCarregar(dias) {
+    let feitos = 0; const fila = dias.slice(), info = $("#h-info");
+    const marca = () => { if (dias.length > 2 && info && this.periodo) info.textContent = `carregando ${feitos} de ${dias.length} dias…`; };
+    marca();
+    await Promise.all(Array.from({length: Math.min(6, fila.length)}, async () => {
+      while (fila.length) { const d = fila.shift(); try { await this.folha(d, this.aba(d), "A1:CO124"); } catch {} feitos++; marca(); }
+    }));
+  },
+  async logLeitura(dataISO) {
+    const arq = await this.arquivo(dataISO), c = (this.logCache ||= {})[arq.mes];
+    if (c && Date.now() - c.em < 20000) return c.p;
+    const p = this.log(dataISO).catch(e => { delete this.logCache[arq.mes]; throw e; });
+    this.logCache[arq.mes] = {p, em: Date.now()}; return p;
   },
   esquecer(dataISO, aba) { const k = Object.keys(this.folhas).find(x => x.endsWith("|" + aba) && x.startsWith(dataISO.slice(0, 7))); if (k) delete this.folhas[k]; },
   cel(F, ref) { const m = ref.match(/^([A-Z]+)(\d+)$/), r = +m[2] - 1, c = colN(m[1]) - 1; return {v: (F.v[r] || [])[c], f: (F.f[r] || [])[c]}; },
@@ -1144,6 +1165,7 @@ const Antigo = {
     }
   },
   async anotar(dataISO, reg) {
+    this.logCache = {};
     const {arq, linhas} = await this.log(dataISO);
     // a leitura do Excel pode vir atrasada logo depois de uma gravação: guarda a última linha usada neste aparelho
     this.logN = this.logN || {};
@@ -1154,6 +1176,7 @@ const Antigo = {
     await this.escrever(arq, "Site", `A${n}:${colL(ANT.LOG.length)}${n}`, [linha]);
   },
   async marcarLog(dataISO, celulas, mud) {
+    this.logCache = {};
     const {arq, linhas} = await this.log(dataISO), iC = ANT.LOG.indexOf("Células"), iD = ANT.LOG.indexOf("Data"), iS = ANT.LOG.indexOf("Situação");
     for (let k = linhas.length - 1; k >= 1; k--) {
       if (linhas[k][iC] === celulas && String(linhas[k][iD]).replace(/^'/, "") === isoBR(dataISO) && linhas[k][iS] !== "desfeito") {
@@ -1164,7 +1187,7 @@ const Antigo = {
   },
   /* junta o registro da aba Site (motivo, lote, fotos…) aos lançamentos lidos das células */
   async juntarLog(rows, dataISO) {
-    let lg; try { lg = await this.log(dataISO); } catch { return rows; }
+    let lg; try { lg = await this.logLeitura(dataISO); } catch { return rows; }
     const I = c => ANT.LOG.indexOf(c), mapa = {};
     lg.linhas.slice(1).forEach(l => { if (l[I("Situação")] !== "desfeito") mapa[`${String(l[I("Data")]).replace(/^'/, "")}|${l[I("Células")]}`] = l; });
     return rows.map(r => {
@@ -1193,6 +1216,7 @@ const Antigo = {
   async ler(t, de, ate) {
     const dias = this.dias(de, ate); let out = [];
     if (t === "tbExpedicao") {
+      if (dias.length > 1) await this.preCarregar(dias);
       for (const d of dias) { const rows = await this.expedicaoDoDia(d); out.push(...await this.juntarLog(rows, d)); }
     } else if (t === "tbProducao") out = await this.producao(dias);
     else if (t === "tbLeituras") out = await this.leituras(dias);
@@ -1398,6 +1422,7 @@ const Antigo = {
     const prods = (App.cad.tbProdutos || []).filter(ativo).map(p => p.Produto);
     const E = Object.fromEntries(prods.map(p => [p, {ant: 0, prod: 0, s: 0, b: 0, r: 0, p: 0, aj: 0, fim: 0}]));
     const dias = this.dias(P.de, P.ate);
+    if (dias.length > 1) await this.preCarregar(dias);
     for (let k = 0; k < dias.length; k++) {
       const d = dias[k]; let F; try { F = await this.folha(d, this.aba(d), "A1:CO124"); } catch (e) { if (e.status === 404) continue; throw e; }
       for (const [r, prod] of Object.entries(ANT.EST)) {
@@ -2694,6 +2719,8 @@ async function desenharMaquinas(P) {
 }
 async function desenharHoje() {
   const P = periodoResumo(), dia = P.de; $("#h-info").textContent = "carregando…";
+  const tela = $("#t-hoje"); tela.classList.add("carregando"); clearTimeout(desenharHoje._t);
+  desenharHoje._t = setTimeout(() => tela.classList.remove("carregando"), 120000);
   if (!P.de) return;
   Antigo.periodo = {de: P.de, ate: P.ate};
   desenharEstoque(P); desenharMaquinas(P);
@@ -2766,6 +2793,7 @@ async function desenharHoje() {
     $$("#h-prod-lista button.lapis-claro").forEach(b => { b.hidden = !pode("producao", "editar"); b.onclick = () => editarProducaoDoResumo(doPer[Number(b.dataset.pk)]); });
     $("#h-info").textContent = `${P.umDia ? "" : P.rot + " · "}${doDia.length} lançamento(s) · ${App.store.nome}`;
   } catch (e) { $("#h-info").textContent = ""; toast(e.message, {erro: true}); }
+  finally { tela.classList.remove("carregando"); }
 }
 
 /* ======================================================================
