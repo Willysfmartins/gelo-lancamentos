@@ -940,7 +940,11 @@ const Antigo = {
     delete this.folhas[`${arq.mes}|${aba}`];
   },
   async limpar(arq, aba, faixa) {
-    await this.req("POST", `${this.ws(arq, aba)}/range(address='${faixa}')/clear`, {applyTo: "Contents"});
+    // grava "" (o /clear do Excel online às vezes responde 500 neste arquivo)
+    const [ini, fim = ini] = faixa.split(":"), pt = r => { const m = r.match(/^([A-Z]+)(\d+)$/); return [colN(m[1]), Number(m[2])]; };
+    const [c1, r1] = pt(ini), [c2, r2] = pt(fim);
+    const vazio = Array.from({length: r2 - r1 + 1}, () => Array(c2 - c1 + 1).fill(""));
+    await this.req("PATCH", `${this.ws(arq, aba)}/range(address='${faixa}')`, {values: vazio});
     delete this.folhas[`${arq.mes}|${aba}`];
   },
   aba(dataISO) { return String(Number(dataISO.slice(8, 10))); },
@@ -1023,7 +1027,11 @@ const Antigo = {
     }
   },
   async anotar(dataISO, reg) {
-    const {arq, linhas} = await this.log(dataISO), n = Math.max(linhas.length, 1) + 1;
+    const {arq, linhas} = await this.log(dataISO);
+    // a leitura do Excel pode vir atrasada logo depois de uma gravação: guarda a última linha usada neste aparelho
+    this.logN = this.logN || {};
+    const n = Math.max(Math.max(linhas.length, 1) + 1, (this.logN[arq.mes] || 0) + 1);
+    this.logN[arq.mes] = n;
     const conta = Planilha.conta ? (Planilha.conta.name || Planilha.conta.username) : "";
     const linha = ANT.LOG.map(c => ({"ID": reg.id, "Registrado em": new Date().toLocaleString("pt-BR"), "Usuário": conta}[c] ?? reg[c] ?? ""));
     await this.escrever(arq, "Site", `A${n}:${colL(ANT.LOG.length)}${n}`, [linha]);
@@ -2035,10 +2043,16 @@ function atualizarX() {
     if (f0.carregou < f0.voltas) bloqueio = `Sem esta saída, ${ed.Pessoa} fica com carga de ${fmt(f0.carregou)} de ${ed.Produto}, menos que as voltas já lançadas (${fmt(f0.voltas)}).`;
   }
   $("#x-faltando").textContent = falta.length ? "Falta: " + falta.join(", ") + "." : bloqueio;
-  $("#x-lancar").disabled = !!falta.length || !!bloqueio;
+  $("#x-lancar").disabled = !!falta.length || !!bloqueio || !!X.enviando;
   X.total = tot;
 }
+// um lançamento por vez: enquanto as fotos sobem, o botão fica travado (senão o próximo lançamento levaria as fotos deste)
 async function lancarX() {
+  if (X.enviando) return;
+  X.enviando = true;
+  try { await lancarX0(); } finally { X.enviando = false; atualizarX(); }
+}
+async function lancarX0() {
   const btn = $("#x-lancar"); btn.disabled = true;
   const p = produtoDe(X.produto), kg = p && p.Unidade === "kg";
   const ruim = RUINS.includes(X.tipo);
