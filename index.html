@@ -603,7 +603,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       <div class="bloco" data-parte="lancexp"><div class="rot">Todos os lançamentos de expedição do dia <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-lista"></table></div></div>
     </div>
     <div class="coluna">
-      <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div></div>
+      <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div><p class="nota" id="h-motivos-nota" hidden></p></div>
       <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><div class="rolagem" style="max-height:none"><table class="dados" id="h-prod"></table></div>
     <div class="rot" style="margin-top:16px">Lançamentos de produção <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-prod-lista"></table></div></div>
       <div class="bloco" data-parte="maquinas"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
@@ -873,7 +873,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 /* configuração já gravada na versão publicada (GitHub Pages): ninguém precisa preencher Configurar */
-const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG", "proxy": "https://gelo-lancamentos.gelominerale.workers.dev"};
+const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG", "avaliacao": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQDL3kAVlNPKQaNqp1jiDA3XAUEswlcxk3ESq25QfY-1-wA?e=CCCGw6", "proxy": "https://gelo-lancamentos.gelominerale.workers.dev"};
 if (CFG_PADRAO) {
   const c = LS.get("gm_cfg", {});
   // completa o que faltar (ex.: o endereço do intermediário em aparelhos já configurados)
@@ -1056,6 +1056,26 @@ const Antigo = {
     await Promise.all(Array.from({length: Math.min(6, fila.length)}, async () => {
       while (fila.length) { const d = fila.shift(); try { await this.folha(d, this.aba(d), "A1:CO124"); } catch {} feitos++; marca(); }
     }));
+  },
+  /* Avaliação das Devoluções (aba Controle GERAL): motivo de cada volta ruim e perda, só leitura */
+  async avaliacao(de, ate) {
+    const link = (this.cfg().avaliacao || "").trim(); if (!link) return null;
+    const c = this.avalCache;
+    if (!c || Date.now() - c.em > 120000) {
+      const p = (async () => {
+        const it = await this.req("GET", `/shares/${codShare(link)}/driveItem?$select=id,name,parentReference`);
+        const r = await this.req("GET", `/drives/${it.parentReference.driveId}/items/${it.id}/workbook/worksheets('${encodeURIComponent("Controle GERAL")}')/usedRange(valuesOnly=true)?$select=values`);
+        const v = r.values || [], h = v.findIndex(l => String(l[0]).trim().toUpperCase() === "DATA");
+        const COD = {2: "Esbarramento entre pallets", 3: "Aberto Manualmente", 4: "Troca", 5: "Perda da Câmara", 6: "Descongelou", 7: "Defeito Solda Inferior", 8: "Defeito Solda Vertical", 9: "Perda Pallet", 10: "Defeito Solda Superior"};
+        return v.slice(h + 1).filter(l => typeof l[0] === "number" && Number(l[5])).map(l => {
+          const pes = String(l[1] || "").trim().toUpperCase(), cod = Number(l[7]);
+          return {Data: serialToISO(l[0]), Pessoa: pes, Q: Number(l[5]), Motivo: String(l[8] || "").trim() || COD[cod] || "Sem motivo",
+                  volta_boa: cod === 1, perda: /^(FABRICA|FÁBRICA|PERDA|PERDAS)$/.test(pes)};
+        });
+      })();
+      this.avalCache = {p, em: Date.now()}; p.catch(() => { this.avalCache = null; });
+    }
+    return (await this.avalCache.p).filter(x => x.Data >= de && x.Data <= ate && !x.volta_boa);
   },
   async logLeitura(dataISO) {
     const arq = await this.arquivo(dataISO), c = (this.logCache ||= {})[arq.mes];
@@ -2755,12 +2775,24 @@ async function desenharHoje() {
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
     $$("#h-lista button.lapis-claro").forEach(b => { b.hidden = !pode("expedicao", "editar"); b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]); });
     $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r)); });
-    const mm = {};
-    doDia.filter(r => RUINS.includes(r.Tipo)).forEach(r => { const k = r.Motivo || "Sem motivo"; (mm[k] ||= {r: 0, p: 0}); mm[k][r.Tipo === "Perda" ? "p" : "r"] += tot(r); });
-    const ks = Object.keys(mm).sort((a, b) => (b === "Troca") - (a === "Troca"));
-    $("#h-motivos").innerHTML = ks.length ? `<tr><th>Motivo</th><th class="n">Volta ruim</th><th class="n">Perda</th></tr>` +
-      ks.map(k => `<tr><td>${esc(k)}</td><td class="n">${fmt(mm[k].r)}</td><td class="n">${fmt(mm[k].p)}</td></tr>`).join("")
+    const mm = {}, ruins = doDia.filter(r => RUINS.includes(r.Tipo));
+    let aval = null, nota = "";
+    if (App.store === Antigo) { try { aval = await Antigo.avaliacao(P.de, P.ate); } catch (e) { nota = "Não deu para ler a Avaliação das Devoluções: " + e.message; } }
+    if (aval) {
+      // motivos vêm da Avaliação das Devoluções; os lançados pelo site (com motivo gravado na aba Site) entram junto
+      aval.forEach(a => { (mm[a.Motivo] ||= {r: 0, p: 0})[a.perda ? "p" : "r"] += a.Q; });
+      ruins.filter(r => r.Motivo).forEach(r => { (mm[r.Motivo] ||= {r: 0, p: 0})[r.Tipo === "Perda" ? "p" : "r"] += tot(r); });
+      const pr = ruins.filter(r => r.Tipo !== "Perda").reduce((a, r) => a + tot(r), 0), pp = ruins.filter(r => r.Tipo === "Perda").reduce((a, r) => a + tot(r), 0);
+      const ar = Object.values(mm).reduce((a, m) => a + m.r, 0), ap = Object.values(mm).reduce((a, m) => a + m.p, 0);
+      nota = `Motivos da Avaliação das Devoluções: ${fmt(ar)} de volta ruim e ${fmt(ap)} de perda. Na planilha do mês: ${fmt(pr)} de volta ruim e ${fmt(pp)} de perda.`;
+    } else ruins.forEach(r => { const k = r.Motivo || "Sem motivo"; (mm[k] ||= {r: 0, p: 0}); mm[k][r.Tipo === "Perda" ? "p" : "r"] += tot(r); });
+    const ks = Object.keys(mm).sort((a, b) => (mm[b].r + mm[b].p) - (mm[a].r + mm[a].p));
+    const TT = ks.reduce((t, k) => ({r: t.r + mm[k].r, p: t.p + mm[k].p}), {r: 0, p: 0});
+    $("#h-motivos").innerHTML = ks.length ? `<tr><th>Motivo</th><th class="n">Volta ruim</th><th class="n">Perda</th><th class="n">Total</th></tr>` +
+      ks.map(k => `<tr><td>${esc(k)}</td><td class="n">${fmt(mm[k].r)}</td><td class="n">${fmt(mm[k].p)}</td><td class="n">${fmt(mm[k].r + mm[k].p)}</td></tr>`).join("") +
+      (ks.length > 1 ? `<tr class="total"><td>Total</td><td class="n">${fmt(TT.r)}</td><td class="n">${fmt(TT.p)}</td><td class="n">${fmt(TT.r + TT.p)}</td></tr>` : "")
       : `<tr><td class="vazio">Sem volta ruim ou perda em ${P.rot}.</td></tr>`;
+    $("#h-motivos-nota").textContent = nota; $("#h-motivos-nota").hidden = !nota;
     const pd = {};
     const qp = r => calc(r["Produção"]) ?? totalPacotes(r.Produto, r.Pallet, r.Fileira, r.Pacote);
     // perda igual à da planilha: (parcial − produção) + puxada; sem parcial, vale a perda informada
