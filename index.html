@@ -350,6 +350,8 @@ label.check input{width:22px;height:22px;accent-color:var(--ciano)}
 label.check small{flex-basis:100%;font-weight:400;color:var(--nevoa);margin-left:32px}
 .bloco-int{border-top:1px solid var(--linha);margin-top:14px;padding-top:14px}
 p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
+.partes{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px;margin-top:6px}
+.partes label.check{font-weight:500}
 .passos-ms{padding-left:20px;line-height:1.7;margin:6px 0}
 .codigo-ms{font-family:var(--fc);font-size:28px;letter-spacing:3px;background:var(--sinal-claro);padding:2px 10px;border-radius:var(--r-s);user-select:all}
 .ok-ms{color:var(--ok);font-weight:700}
@@ -591,19 +593,19 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
     <button type="button" data-p="hoje">Hoje</button><button type="button" data-p="ontem">Ontem</button><button type="button" data-p="7">Últimos 7 dias</button>
     <button type="button" data-p="mes">Mês inteiro</button><button type="button" data-p="mesant">Mês anterior</button>
   </div></div>
-  <div class="bloco" style="margin-bottom:18px"><div class="rot">Estoque <span id="h-est-info"></span></div>
+  <div class="bloco" data-parte="estoque" style="margin-bottom:18px"><div class="rot">Estoque <span id="h-est-info"></span></div>
     <div class="rolagem" style="max-height:none"><table class="dados" id="h-estoque"></table></div>
     <p class="nota-est">Estoque final = anterior + produção − saída + volta boa − perdas + ajustes. A volta ruim (com as trocas) não volta ao estoque; aparece só para conferência.</p></div>
   <div class="grade resumo">
     <div class="coluna">
-      <div class="bloco"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><div class="rolagem"><table class="dados" id="h-mot"></table></div></div>
-      <div class="bloco"><div class="rot">Todos os lançamentos de expedição do dia <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-lista"></table></div></div>
+      <div class="bloco" data-parte="fechamento"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><div class="rolagem"><table class="dados" id="h-mot"></table></div></div>
+      <div class="bloco" data-parte="lancexp"><div class="rot">Todos os lançamentos de expedição do dia <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-lista"></table></div></div>
     </div>
     <div class="coluna">
-      <div class="bloco"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div></div>
-      <div class="bloco"><div class="rot">Produção <span>perda em % da produção</span></div><div class="rolagem" style="max-height:none"><table class="dados" id="h-prod"></table></div>
+      <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div></div>
+      <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><div class="rolagem" style="max-height:none"><table class="dados" id="h-prod"></table></div>
     <div class="rot" style="margin-top:16px">Lançamentos de produção <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-prod-lista"></table></div></div>
-      <div class="bloco"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
+      <div class="bloco" data-parte="maquinas"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
     </div>
   </div>
 </section>
@@ -657,6 +659,8 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
           <label class="check" style="flex:1 1 200px"><input type="checkbox" id="ad-p-admin"> Administrador <small>tudo liberado, mais Administração e Configurar</small></label>
         </div>
         <div class="rolagem"><table class="dados matriz" id="ad-matriz"></table></div>
+        <div class="rot" style="margin-top:16px">Resumo do dia: o que este perfil vê <span>precisa do "Ver" do Resumo marcado</span></div>
+        <div class="partes" id="ad-partes"></div>
         <p class="nota">Desfazer só aparece no último lançamento feito no próprio aparelho. Editar inclui o lápis do Resumo do dia.</p>
         <div class="novo-acoes"><button type="button" class="botao primario" id="ad-p-salvar">Salvar perfil</button><button type="button" class="botao perigo" id="ad-p-excluir">Excluir perfil</button></div>
       </div>
@@ -2833,6 +2837,9 @@ const TELAS_ACESSO = [
   {id: "ajustes", nome: "Ajustes", acoes: ["ver", "lancar", "desfazer"]},
   {id: "hoje", nome: "Resumo do dia", acoes: ["ver"]},
 ];
+/* partes do Resumo do dia que cada perfil vê */
+const PARTES_RESUMO = [["estoque", "Estoque"], ["fechamento", "Fechamento dos motoristas"], ["lancexp", "Lançamentos de expedição"],
+  ["motivos", "Volta ruim e perdas por motivo"], ["producao", "Produção e lançamentos de produção"], ["maquinas", "Leitura das máquinas"]];
 const NOMES_ACOES = {ver: "Ver", lancar: "Lançar", editar: "Editar", desfazer: "Desfazer", cadastros: "Cadastrar e mover pessoas"};
 const permTudo = () => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, true]))]));
 const permCom = (telas, acoes) => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, telas.includes(t.id) && acoes.includes(a)]))]));
@@ -2932,7 +2939,10 @@ const Acesso = {
   pode(tela, acao) {
     const p = this.sessao && this.perfil(this.sessao.perfil); if (!p) return false;
     if (p.admin) return true;
-    return !!(p.perm && p.perm[tela] && p.perm[tela][acao]);
+    const t = p.perm && p.perm[tela]; if (!t) return false;
+    // partes do Resumo: perfis antigos (sem a marcação) veem tudo que o "Ver" libera
+    if (tela === "hoje" && acao !== "ver" && PARTES_RESUMO.some(([k]) => k === acao)) return !!t.ver && t[acao] !== false;
+    return !!t[acao];
   },
   async entrar(login, senha) {
     if (PROXY()) {
@@ -3055,6 +3065,7 @@ function aplicarAcesso() {
   $("#usuario-nome").title = Acesso.sessao ? `${Acesso.sessao.nome} (${Acesso.sessao.login})` : "";
   $("#usuario").hidden = !Acesso.sessao;
   $("#x-novo-btn").hidden = !pode("expedicao", "cadastros");
+  $$("#t-hoje [data-parte]").forEach(b => b.hidden = !pode("hoje", b.dataset.parte));
   document.body.classList.toggle("so-ver-expedicao", !pode("expedicao", "lancar"));
   Object.keys(ultimos).forEach(el => desenharUltimos(el));
   ["atualizarX", "atualizarP", "atualizarE", "atualizarL", "atualizarA"].forEach(f => { try { window[f](); } catch {} });
@@ -3098,7 +3109,10 @@ function desenharAdmin() {
   $("#ad-matriz").innerHTML = `<tr><th>Tela</th>${todas.map(a => `<th>${NOMES_ACOES[a]}</th>`).join("")}</tr>` +
     TELAS_ACESSO.map(t => `<tr><td>${t.nome}</td>${todas.map(a => t.acoes.includes(a)
       ? `<td class="c"><input type="checkbox" data-t="${t.id}" data-a="${a}" aria-label="${t.nome}: ${NOMES_ACOES[a]}"${p.admin || (p.perm[t.id] && p.perm[t.id][a]) ? " checked" : ""}${p.admin ? " disabled" : ""}></td>` : `<td class="c na">–</td>`).join("")}</tr>`).join("");
+  const hj = p.perm.hoje || {};
+  $("#ad-partes").innerHTML = PARTES_RESUMO.map(([k, n]) => `<label class="check"><input type="checkbox" data-parte="${k}"${p.admin || (hj.ver && hj[k] !== false) ? " checked" : ""}${p.admin || !hj.ver ? " disabled" : ""}> ${n}</label>`).join("");
   $$("#ad-matriz input").forEach(i => i.onchange = () => {
+    if (i.dataset.t === "hoje" && i.dataset.a === "ver") $$("#ad-partes input").forEach(x => { x.disabled = !i.checked; x.checked = i.checked; });
     // sem "ver" não tem o resto; marcar qualquer ação marca "ver"
     const t = i.dataset.t, a = i.dataset.a, linha = $$(`#ad-matriz input[data-t="${t}"]`);
     if (a === "ver" && !i.checked) linha.forEach(x => x.checked = false);
@@ -3159,6 +3173,7 @@ async function salvarPerfil() {
   const id = ADM.perfilAberto, nome = $("#ad-p-nome").value.trim(), admin = $("#ad-p-admin").checked;
   if (!nome) return toast("Dê um nome ao perfil.", {erro: true});
   const perm = {}; TELAS_ACESSO.forEach(t => { perm[t.id] = {}; t.acoes.forEach(a => { const i = $(`#ad-matriz input[data-t="${t.id}"][data-a="${a}"]`); perm[t.id][a] = admin || !!(i && i.checked); }); });
+  PARTES_RESUMO.forEach(([k]) => { const i = $(`#ad-partes input[data-parte="${k}"]`); perm.hoje[k] = admin || !!(perm.hoje.ver && i && i.checked); });
   try {
     await Acesso.salvar(d => { const p = d.perfis.find(x => x.id === id); if (!p) throw new Error("Esse perfil não existe mais.");
       if (id === "admin" && !admin) throw new Error("O perfil Administrador continua sendo administrador.");
@@ -3329,7 +3344,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#ad-novo-criar").onclick = criarUsuario;
   $("#ad-senha-salvar").onclick = salvarSenhaAdmin; $("#ad-senha-cancelar").onclick = () => { $("#ad-senha-box").hidden = true; };
   $("#ad-p-salvar").onclick = salvarPerfil; $("#ad-p-novo").onclick = novoPerfil; $("#ad-p-excluir").onclick = excluirPerfil;
-  $("#ad-p-admin").onchange = e => $$("#ad-matriz input").forEach(i => { i.disabled = e.target.checked; if (e.target.checked) i.checked = true; });
+  $("#ad-p-admin").onchange = e => $$("#ad-matriz input, #ad-partes input").forEach(i => { i.disabled = e.target.checked; if (e.target.checked) i.checked = true; });
   $$("nav.abas button").forEach(b => b.hidden = true);
   if (PROXY()) { App.cad = LS.get("gm_cad_cache", null) || SCHEMA.cad; await exigirEntrada(); await recarregar(); }
   else { await recarregar(); await exigirEntrada(); }
