@@ -920,6 +920,7 @@ const Antigo = {
     let it;
     try { it = await this.req("GET", `/drives/${this.drive}/items/${this.raiz}:/${a}/${m}.xlsx?$select=id,name,webUrl`); }
     catch (e) { if (e.status === 404) throw new Error(`Não achei o arquivo ${a}/${m}.xlsx na pasta EXPEDIÇÃO E PRODUÇÃO GELO.`); throw e; }
+    this.nomeLigado = `${a}/${m}.xlsx`; setTimeout(() => { try { mostrarModo(); } catch {} }, 0);
     return (this.arquivos[k] = {base: `/drives/${this.drive}/items/${it.id}/workbook`, nome: `${a}/${m}.xlsx`, web: it.webUrl, mes: k});
   },
   ws(arq, aba) { return `${arq.base}/worksheets('${encodeURIComponent(aba)}')`; },
@@ -2646,16 +2647,19 @@ function mostrarModo() {
     (base === "nov2026" ? "Começou com os dados reais de novembro/2026 (planilha 11 + Avaliação das Devoluções, até 25/11); o que você lançar ou editar fica só aqui." : "Os cadastros são os da planilha 6.13.");
   $("#h-demo").hidden = plan || base !== "nov2026";
   const pil = $("#conexao");
-  pil.classList.toggle("ligada", plan && !!Planilha.base);
-  $("span", pil).textContent = plan ? (Planilha.base ? (Planilha.arquivo || "Planilha") : "Planilha: não ligada") : "Demonstração";
+  const ant = App.store === Antigo, lig = ant ? !!Antigo.raiz : !!Planilha.base;
+  pil.classList.toggle("ligada", plan && lig);
+  $("span", pil).textContent = plan ? (lig ? (ant ? (Antigo.nomeLigado || "Planilha do mês") : (Planilha.arquivo || "Planilha")) : "Planilha: não ligada") : "Demonstração";
 }
 function salvarCfg() { LS.set("gm_cfg", {...LS.get("gm_cfg", {}), clientId: $("#c-client").value.trim(), tenantId: $("#c-tenant").value.trim(), link: $("#c-link").value.trim(), pasta: $("#c-pasta").value.trim()}); Planilha.pca = null; Planilha.base = null; Planilha.meta = {}; Antigo.raiz = null; Antigo.arquivos = {}; Antigo.folhas = {}; }
 async function testar() {
   const box = $("#c-resultado"); box.hidden = false; box.textContent = "Lendo a planilha…";
   try {
-    await Planilha.abrir(); const cad = await Planilha.cadastros();
+    const S = App.store; await S.abrir(); const cad = await S.cadastros();
     App.cad = cad; LS.set("gm_cad_cache", cad);
-    box.innerHTML = `Ligado a <b>${esc(Planilha.arquivo)}</b>. Cadastros lidos: ${cad.tbProdutos.length} produtos, ${cad.tbPessoas.length} pessoas, ${cad.tbMotivos.length} motivos, ${cad.tbMateriais.length} materiais, ${cad.tbEquipamentos.length} equipamentos.`;
+    let nome = Planilha.arquivo;
+    if (S === Antigo) { const a = await Antigo.arquivo(hojeISO()); nome = `EXPEDIÇÃO E PRODUÇÃO GELO / ${a.nome}`; }
+    box.innerHTML = `Ligado a <b>${esc(nome)}</b>. Cadastros lidos: ${cad.tbProdutos.length} produtos, ${cad.tbPessoas.length} pessoas, ${cad.tbMotivos.length} motivos, ${cad.tbMateriais.length} materiais, ${cad.tbEquipamentos.length} equipamentos.`;
     mostrarModo(); montarTudo();
   } catch (e) { box.textContent = e.message; }
 }
@@ -2675,7 +2679,7 @@ async function recarregar() {
     if (App.modo === "planilha") {
       App.cad = LS.get("gm_cad_cache", null) || SCHEMA.cad;
       await Planilha.iniciar();
-      if (Planilha.conta) { await Planilha.abrir(); App.cad = await Planilha.cadastros(); LS.set("gm_cad_cache", App.cad); Fila.enviar(); }
+      if (Planilha.conta) { await App.store.abrir(); App.cad = await App.store.cadastros(); LS.set("gm_cad_cache", App.cad); Fila.enviar(); }
       else toast("Entre com a conta Microsoft em Configurar para gravar na planilha.", {erro: true});
     } else App.cad = await Demo.cadastros();
   } catch (e) { toast(e.message, {erro: true, ms: 9000}); App.cad = App.cad || LS.get("gm_cad_cache", null) || SCHEMA.cad; }
