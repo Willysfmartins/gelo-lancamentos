@@ -673,7 +673,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       <div class="bloco" data-parte="fechamento"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><p class="ajuda-maq" id="h-mot-ajuda">Toque no nome para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-mot"></table></div></div>
     </div>
     <div class="coluna">
-      <div class="bloco" data-parte="consignado" id="h-consig-bloco" hidden><div class="rot">Estoque em haver <span id="h-consig-info"></span></div><p class="ajuda-maq" id="h-consig-ajuda"></p><div class="rolagem" style="max-height:none"><table class="dados" id="h-consig"></table></div></div>
+      <div class="bloco" data-parte="consignado" id="h-consig-bloco" hidden><div class="rot">Estoque em haver <span id="h-consig-info"></span></div><p class="ajuda-maq" id="h-consig-ajuda"></p><div class="rolagem" style="max-height:none"><table class="dados" id="h-consig"></table></div><button type="button" class="btn-sec" id="h-consig-novo" style="margin-top:10px">+ Adicionar cliente em haver</button><div id="h-consig-form"></div></div>
       <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div><p class="nota" id="h-motivos-nota" hidden></p></div>
       <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><p class="ajuda-maq" id="h-prod-ajuda">Toque no produto para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-prod"></table></div></div>
       <div class="bloco" data-parte="maquinas"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
@@ -2085,7 +2085,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127150201";
+const VERSAO = "20261127153516";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -2205,6 +2205,7 @@ async function desenharConsignado(P) {
       soSite.map(e => `<tr><td>${esc(e.cliente)} ${esc(e.produto)} <small class="nota">(não está no quadro)</small></td><td class="n">${f(e.saiu || null, e.produto)}</td><td class="n">${f(e.voltou || null, e.produto)}</td><td class="n">–</td><td>Site: <b>${f(e.saldo, e.produto)}</b></td></tr>`).join("") +
       (!linhas.length && !soSite.length ? `<tr><td class="vazio" colspan="5">Nenhum cliente com saldo em haver.</td></tr>` : "");
     $$("#h-consig button[data-ligar]").forEach(b => b.onclick = () => formLigarHaver(b.closest("tr"), linhas[+b.dataset.ligar], T, P));
+    $("#h-consig-novo").hidden = !podeLigar; $("#h-consig-novo").onclick = () => formNovoHaver(P);
     $$("#h-consig button[data-desligar]").forEach(b => b.onclick = async () => {
       const g = linhas[+b.dataset.desligar].g, ini = Consig.iniciais(g.c), outros = Object.keys(ini).filter(k => k !== g.prod);
       if (!b.dataset.conf) { b.dataset.conf = 1; b.textContent = "Toque de novo para desligar"; return; }
@@ -2213,6 +2214,33 @@ async function desenharConsignado(P) {
       desenharConsignado(P);
     });
   } catch (e) { if (bloco.dataset.chave === chave) { $("#h-consig-info").textContent = ""; $("#h-consig").innerHTML = `<tr><td class="vazio">Não deu para ler: ${esc(e.message)}</td></tr>`; } }
+}
+/* Cliente novo em haver (ainda sem linha no quadro da planilha): escolhe cliente, produto, saldo e o dia em que começa */
+function formNovoHaver(P) {
+  const box = $("#h-consig-form");
+  const pes = (App.cad.tbPessoas || []).filter(p => p.Nome && ativo(p)).map(p => p.Nome).sort();
+  const prods = (App.cad.tbProdutos || []).filter(x => x.Produto && ativo(x)).map(x => x.Produto);
+  box.innerHTML = `<div class="ligar-cx" style="margin-top:10px"><label>Cliente<select id="nh-pes"><option value="">Escolha…</option>${pes.map(n => `<option>${esc(n)}</option>`).join("")}</select></label>
+    <label>Produto<select id="nh-prod"><option value="">Escolha…</option>${prods.map(n => `<option>${esc(n)}</option>`).join("")}</select></label>
+    <label>Saldo atual<input type="number" inputmode="numeric" min="0" step="1" id="nh-saldo" value="0" style="min-height:40px;width:110px;border:1px solid var(--linha);border-radius:var(--r-s);padding:0 8px;font:inherit"></label>
+    <label>Conta a partir de<input type="date" id="nh-data" value="${hojeISO()}" style="min-height:40px;border:1px solid var(--linha);border-radius:var(--r-s);padding:0 8px;font:inherit"></label>
+    <button type="button" class="btn-sec" id="nh-ok">Adicionar</button><button type="button" class="link-pq" id="nh-x">Cancelar</button>
+    <span class="nota" style="flex-basis:100%">Cliente que não está no cadastro: cadastre antes pelo + Novo na Expedição. O site cria a linha no quadro SALDOS P/ DEVOLUÇÃO da planilha.</span></div>`;
+  $("#nh-x").onclick = () => box.innerHTML = "";
+  $("#nh-ok").onclick = async () => {
+    const nome = $("#nh-pes").value, prod = $("#nh-prod").value, desde = $("#nh-data").value, saldo = Math.round(Number($("#nh-saldo").value) || 0);
+    if (!nome || !prod || !desde) return toast("Escolha o cliente, o produto e o dia.", {erro: true});
+    $("#nh-ok").disabled = true;
+    try {
+      const c = pessoaDe(nome), ini = {};
+      // outros produtos já em haver do mesmo cliente passam a contar do mesmo dia, com o saldo do site no dia anterior
+      if (ehConsignado(c)) (await Consig.saldos(null, serialToISO(isoToSerial(desde) - 1))).filter(e => e.cliente === nome).forEach(e => ini[e.produto] = Math.round(e.saldo));
+      ini[prod] = saldo;
+      await mudarPessoa(nome, {Consignado: "Sim", "Consignado desde": desde, "Saldo inicial": JSON.stringify(ini)});
+      box.innerHTML = ""; desenharConsignado(P);
+    } catch (e) { toast(e.message, {erro: true, ms: 9000}); $("#nh-ok").disabled = false; }
+  };
+  $("#nh-pes").focus();
 }
 /* Liga uma linha do quadro da planilha a um cliente e produto: o saldo da planilha nesse dia vira o saldo inicial, contando do dia seguinte */
 function formLigarHaver(tr, l, T, P) {
@@ -2538,7 +2566,7 @@ async function mudarPessoa(nome, mud, {desfazendo = false} = {}) {
     $("#menu-pessoa").hidden = true; MP.nome = null;
     desenharPessoas();
     Consig.cache = {}; atualizarX();
-    if (mud.Consignado === "Sim" && App.store === Antigo) Antigo.escreverSaldos(mud["Consignado desde"]).catch(e => toast("Não deu para preencher o quadro de saldos na planilha: " + e.message, {erro: true, ms: 9000}));
+    if (mud.Consignado === "Sim" && App.store === Antigo) await Antigo.escreverSaldos(mud["Consignado desde"]).catch(e => toast("Não deu para preencher o quadro de saldos na planilha: " + e.message, {erro: true, ms: 9000}));
     const msg = mud.Consignado === "Sim" ? `${nome} com saldo em haver a partir de ${isoBR(mud["Consignado desde"])}: saída tira, volta devolve. O quadro de saldos da planilha passa a ser preenchido pelo site.`
       : mud.Consignado === "Não" ? `${nome} não é mais em haver.`
       : mud.Ativo === "Não" ? `${nome} desativado: não aparece mais para lançar (está em Inativos).`
