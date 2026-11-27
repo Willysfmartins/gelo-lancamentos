@@ -36,6 +36,12 @@ nav.abas{display:flex;gap:2px;margin-left:12px;flex:1;overflow-x:auto;scrollbar-
 nav.abas button{background:none;border:0;color:#C7DCE8;padding:10px 14px;border-radius:var(--r-s);font-weight:600;white-space:nowrap;min-height:44px}
 nav.abas button[aria-current="page"]{background:var(--ciano);color:#fff}
 nav.abas button:hover{color:#fff}
+.sub-abas{display:flex;gap:6px;margin:0 0 18px;background:#fff;border:1px solid var(--linha);border-radius:var(--r-m);padding:5px;width:max-content;max-width:100%;overflow-x:auto}
+.sub-abas button{border:0;background:none;color:var(--aco-2);font-family:var(--fc);font-size:19px;font-weight:700;padding:0 22px;min-height:48px;border-radius:var(--r-s);white-space:nowrap}
+.sub-abas button:hover{background:var(--ciano-claro)}
+.sub-abas button[aria-pressed=true]{background:var(--aco);color:#fff}
+.sub-abas button[hidden],.sub-abas[hidden]{display:none}
+@media (max-width:600px){.sub-abas{width:100%}.sub-abas button{flex:1;padding:0 8px;font-size:17px}}
 .estado{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
 .pilula{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;background:#1D4865;color:#E3F0F7;font-weight:600}
 .pilula i{width:8px;height:8px;border-radius:50%;background:var(--sinal);display:inline-block}
@@ -414,8 +420,6 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
   <nav class="abas" aria-label="Telas">
     <button data-tela="expedicao" aria-current="page">Expedição</button>
     <button data-tela="producao">Produção</button>
-    <button data-tela="embalagens">Embalagens</button>
-    <button data-tela="leituras">Leituras</button>
     <button data-tela="ajustes">Ajustes</button>
     <button data-tela="hoje">Resumo do dia</button>
     <button data-tela="historico" hidden>Histórico</button>
@@ -510,6 +514,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 
 <!-- ============================ PRODUÇÃO ============================ -->
 <section class="tela" id="t-producao" aria-labelledby="h-producao">
+  <div class="sub-abas" role="group" aria-label="Lançamentos da fábrica"><button type="button" data-sub="producao">Produção</button><button type="button" data-sub="embalagens">Embalagens</button><button type="button" data-sub="leituras">Leituras</button></div>
   <h1 class="titulo" id="h-producao">Produção</h1>
   <div class="aviso-edicao" id="p-editando" hidden role="status"><span></span><button type="button" id="p-cancelar">Cancelar edição</button></div>
   <p class="sub">Uma linha por produto e turno: pallet, fileira, fardo e pacote, depois o parcial e a puxada. O parcial é igual ou maior que a produção; perda = (parcial − produção) + puxada, e ela tem que ser menor que a produção.</p>
@@ -553,6 +558,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 
 <!-- ============================ EMBALAGENS ============================ -->
 <section class="tela" id="t-embalagens" aria-labelledby="h-emb">
+  <div class="sub-abas" role="group" aria-label="Lançamentos da fábrica"><button type="button" data-sub="producao">Produção</button><button type="button" data-sub="embalagens">Embalagens</button><button type="button" data-sub="leituras">Leituras</button></div>
   <h1 class="titulo" id="h-emb">Bobinas e embalagens</h1>
   <p class="sub">Entrada quando chega material, Uso no consumo do dia, Ajuste para corrigir depois de contar (pode ser negativo).</p>
   <div class="grade">
@@ -576,6 +582,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 
 <!-- ============================ LEITURAS ============================ -->
 <section class="tela" id="t-leituras" aria-labelledby="h-lei">
+  <div class="sub-abas" role="group" aria-label="Lançamentos da fábrica"><button type="button" data-sub="producao">Produção</button><button type="button" data-sub="embalagens">Embalagens</button><button type="button" data-sub="leituras">Leituras</button></div>
   <h1 class="titulo" id="h-lei">Horário das máquinas</h1>
   <div class="aviso-edicao" id="l-editando" hidden role="status"><span></span><button type="button" id="l-cancelar">Cancelar edição</button></div>
   <p class="sub">Marque um ou mais equipamentos e coloque a hora em que ligou e desligou. As horas ligado são calculadas; se o fim for menor que o início, conta como virada da meia-noite. Dois períodos no mesmo dia = dois lançamentos. Se um horário cruzar com outro já lançado da mesma máquina, o pedaço que cruza não conta.</p>
@@ -2004,7 +2011,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127114944";
+const VERSAO = "20261127115803";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -3490,8 +3497,10 @@ function aplicarAcesso() {
   const adm = Acesso.admin();
   $$("nav.abas button").forEach(b => {
     const t = b.dataset.tela;
-    b.hidden = t === "config" || t === "admin" || t === "historico" ? !adm : !pode(t, "ver");
+    b.hidden = t === "config" || t === "admin" || t === "historico" ? !adm : t === "producao" ? !FABRICA.some(f => pode(f, "ver")) : !pode(t, "ver");
   });
+  $$(".sub-abas button").forEach(b => b.hidden = !pode(b.dataset.sub, "ver"));
+  $$(".sub-abas").forEach(g => g.hidden = $$("button", g).filter(b => !b.hidden).length < 2);
   $("#usuario-nome").textContent = Acesso.sessao ? Acesso.sessao.nome.split(" ")[0] : "";
   $("#usuario-nome").title = Acesso.sessao ? `${Acesso.sessao.nome} (${Acesso.sessao.login})` : "";
   $("#usuario").hidden = !Acesso.sessao;
@@ -3715,10 +3724,19 @@ setInterval(async () => {
     else if (tela === "t-leituras" && !L.editando) await LeitDia.carregar();
   } catch {} finally { ATUALIZANDO = false; }
 }, 30000);
+/* Produção, Embalagens e Leituras ficam juntas na aba Produção, escolhidas pelos botões no topo */
+const FABRICA = ["producao", "embalagens", "leituras"];
+function irParaFabrica() {
+  const ult = LS.get("gm_sub_fabrica", "producao"), ok = t => !Acesso.sessao || pode(t, "ver");
+  irPara(ok(ult) ? ult : FABRICA.find(ok) || "producao");
+}
 function irPara(tela) {
   if (Acesso.sessao && !telaPermitida(tela)) { const p = primeiraTela(); if (!p || p === tela) return; tela = p; }
   if (tela !== "hoje") Antigo.periodo = null;
-  $$("nav.abas button").forEach(b => { if (b.dataset.tela === tela) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  const navTela = FABRICA.includes(tela) ? "producao" : tela;
+  $$("nav.abas button").forEach(b => { if (b.dataset.tela === navTela) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  $$(".sub-abas button").forEach(b => b.setAttribute("aria-pressed", b.dataset.sub === tela));
+  if (FABRICA.includes(tela)) LS.set("gm_sub_fabrica", tela);
   $$(".tela").forEach(s => s.classList.toggle("ativa", s.id === "t-" + tela));
   if (tela === "hoje") desenharHoje();
   if (tela === "expedicao") Carga.carregar($("#x-data").value, true);
@@ -3729,7 +3747,8 @@ function irPara(tela) {
 }
 document.addEventListener("DOMContentLoaded", async () => {
   const h = hojeISO(); ["#x-data", "#p-data", "#e-data", "#l-data", "#a-data", "#h-data", "#h-ate"].forEach(s => $(s).value = h);
-  $$("nav.abas button").forEach(b => b.onclick = () => irPara(b.dataset.tela));
+  $$("nav.abas button").forEach(b => b.onclick = () => b.dataset.tela === "producao" ? irParaFabrica() : irPara(b.dataset.tela));
+  $$(".sub-abas button").forEach(b => b.onclick = () => irPara(b.dataset.sub));
   stepper($("#t-expedicao"), atualizarX); stepper($("#t-producao"), atualizarP); stepper($("#t-embalagens"), atualizarE); stepper($("#t-ajustes"), atualizarA);
   $("#x-data").addEventListener("input", () => { Carga.carregar($("#x-data").value, true); atualizarX(); });
   $("#x-placa").addEventListener("input", e => { const i = e.target, v = i.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""); if (v !== i.value) i.value = v; atualizarX(); });
