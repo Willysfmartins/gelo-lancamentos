@@ -197,6 +197,14 @@ td.acao > * + *{margin-left:4px}
 .fech .nota{color:#8FB0C3;font-size:12.5px}
 
 /* listas */
+.btn-incluir{min-height:56px;border:2px solid #7FE3FF;border-radius:var(--r-m);background:transparent;color:#fff;font-family:var(--fc);font-size:21px;font-weight:700}
+.btn-incluir:hover:not(:disabled){background:#173E57}
+.btn-incluir:disabled{border-color:#2F5874;color:#8FB0C3;cursor:not-allowed}
+.btn-incluir[hidden],.pedido[hidden]{display:none}
+.pedido{background:#0F2C40;border-radius:var(--r-s);padding:10px 12px}
+.pedido h3{font-size:14px;margin:0 0 4px;color:#CFE2EC;font-weight:600}
+.pedido .item:first-child{border-top:0}
+.pedido .item .q{font-size:17px;white-space:nowrap}
 .ultimos{margin-top:4px}
 .ultimos h3{font-size:14px;margin:0 0 8px;color:#CFE2EC}
 .item{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid #1D4865;font-size:14px}
@@ -307,6 +315,8 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
   #barra .txt{flex:1;min-width:0;font-size:12.5px;color:#A9C4D4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #barra button{min-height:56px;padding:0 22px;border:0;border-radius:var(--r-m);background:var(--ciano);color:#fff;font-family:var(--fc);font-size:22px;font-weight:700}
   #barra button:disabled{background:#2F5874;color:#8FB0C3}
+  #barra button.incluir{background:transparent;border:2px solid #7FE3FF;padding:0 14px;font-size:19px}
+  #barra button.incluir:disabled{background:transparent;border-color:#2F5874;color:#8FB0C3}
   #toast{bottom:96px}
 }
 /* celular */
@@ -398,7 +408,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 <section class="tela ativa" id="t-expedicao" aria-labelledby="h-exp">
   <h1 class="titulo" id="h-exp">Expedição</h1>
   <div class="aviso-edicao" id="x-editando" hidden role="status"><span></span><button type="button" id="x-cancelar">Cancelar edição</button></div>
-  <p class="sub">Uma linha por produto, com as fotos do que vai no caminhão. Depois de lançar, o motorista e o tipo continuam marcados para o próximo produto da mesma carga. Troca no cliente é volta ruim com o motivo Troca. Volta boa e volta ruim não podem passar do que o motorista carregou no dia.</p>
+  <p class="sub">Monte o pedido inteiro antes de lançar: escolha o tipo, o motorista e a placa, depois cada produto com a quantidade e toque em Incluir no pedido. No fim, tire as fotos da carga e toque em Lançar pedido: cada produto vira uma linha na planilha, todas com as mesmas fotos. Troca no cliente é volta ruim com o motivo Troca. Volta boa e volta ruim não podem passar do que o motorista carregou no dia.</p>
   <div class="grade">
     <div class="coluna">
       <div class="bloco">
@@ -453,8 +463,10 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       </div>
       <div class="fech" id="x-fech" hidden aria-live="polite"></div>
       <div class="mostrador" aria-live="polite"><span class="num zero" id="x-total">0</span><span class="uni" id="x-uni">pacotes</span><span class="conta" id="x-conta"></span></div>
+      <button type="button" class="btn-incluir" id="x-incluir" disabled>Incluir no pedido</button>
+      <div class="pedido" id="x-pedido" hidden aria-live="polite"><h3 id="x-ped-tit">Pedido</h3><div id="x-ped-lista"></div></div>
       <div class="fotos-campo" id="x-fotos">
-        <div class="fotos-cab"><span>Fotos do produto</span><small id="x-fotos-n">nenhuma</small></div>
+        <div class="fotos-cab"><span>Fotos do pedido</span><small id="x-fotos-n">nenhuma</small></div>
         <div class="fotos-lista" id="x-fotos-lista"></div>
         <div class="fotos-botoes">
           <button type="button" class="foto-btn" id="x-foto-tirar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.2-1.8A2 2 0 0 1 10 3.3h4a2 2 0 0 1 1.7.9L16.9 6h1.6A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg><span>Tirar foto</span></button>
@@ -754,7 +766,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
   <button type="button" id="mp-ativo"></button>
   <button type="button" id="mp-fechar" class="mp-fechar">Cancelar</button>
 </div>
-<div id="barra" hidden><div style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="num" id="b-num">0</span><span class="txt" id="b-txt"></span></div><button id="b-lancar" disabled>Lançar</button></div>
+<div id="barra" hidden><div style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="num" id="b-num">0</span><span class="txt" id="b-txt"></span></div><button id="b-incluir" class="incluir" hidden disabled>Incluir</button><button id="b-lancar" disabled>Lançar</button></div>
 <div id="toast" role="status" aria-live="polite"><span></span></div>
 <dialog id="galeria" aria-labelledby="gal-tit">
   <div class="gal-cab"><div><b id="gal-tit">Fotos</b><small id="gal-sub"></small></div><button type="button" id="gal-fechar" aria-label="Fechar">Fechar</button></div>
@@ -899,7 +911,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 /* configuração já gravada na versão publicada (GitHub Pages): ninguém precisa preencher Configurar */
-const CFG_PADRAO = {"clientId": "5a64fb8e-2b72-49bb-92f3-70730ed396c4", "tenantId": "1759750e-d20f-4cc8-a086-cc2cb9044ae9", "formato": "antigo", "pasta": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG", "avaliacao": "https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQDL3kAVlNPKQaNqp1jiDA3XAUEswlcxk3ESq25QfY-1-wA?e=CCCGw6", "proxy": "https://gelo-lancamentos.gelominerale.workers.dev"};
+const CFG_PADRAO = {"clientId":"5a64fb8e-2b72-49bb-92f3-70730ed396c4","tenantId":"1759750e-d20f-4cc8-a086-cc2cb9044ae9","formato":"antigo","pasta":"https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG","avaliacao":"https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQDL3kAVlNPKQaNqp1jiDA3XAUEswlcxk3ESq25QfY-1-wA?e=CCCGw6","proxy":"https://gelo-lancamentos.gelominerale.workers.dev"};
 if (CFG_PADRAO) {
   const c = LS.get("gm_cfg", {});
   // completa o que faltar (ex.: o endereço do intermediário em aparelhos já configurados)
@@ -1875,9 +1887,16 @@ const Fila = {
           if (blobs.length) it.obj.Fotos = await App.store.subirFotos(blobs, it.obj.__pasta || "sem data", null, {data: it.obj.Data, pessoa: it.obj.Pessoa, placa: it.obj.Placa, tipo: it.obj.Tipo, produto: it.obj.Produto});
           const chave = it.obj.__fotos; delete it.obj.__fotos; delete it.obj.__pasta;
           await App.store.adicionar(it.t, it.obj); ok++;
+          if (it.obj.Fotos) { const m = LS.get("gm_fotos_pedido", {}); m[chave] = it.obj.Fotos; LS.set("gm_fotos_pedido", m); }
           Hist.registrar("Lançou (sem internet, enviado depois)", ({tbExpedicao: "expedicao", tbProducao: "producao", tbEmbalagens: "embalagens", tbLeituras: "leituras", tbAjustes: "ajustes"})[it.t] || "", `${it.obj.Tipo || it.obj.Turno || it.obj.Movimento || ""} · ${it.obj.Pessoa || it.obj.Produto || it.obj.Material || it.obj.Equipamento || ""}`, "dia " + isoBR(it.obj.Data));
           try { await FotoDB.del(chave); } catch {}
           continue;
+        }
+        if (it.obj.__fotosDe) {
+          // outro produto do mesmo pedido: usa as fotos que subiram com o primeiro
+          const ref = LS.get("gm_fotos_pedido", {})[it.obj.__fotosDe];
+          if (!ref && f.some(o => o !== it && o.obj.__fotos === it.obj.__fotosDe)) { resto.push(it); continue; }
+          if (ref) it.obj.Fotos = ref; delete it.obj.__fotosDe;
         }
         await App.store.adicionar(it.t, it.obj); ok++;
         Hist.registrar("Lançou (sem internet, enviado depois)", ({tbExpedicao: "expedicao", tbProducao: "producao", tbEmbalagens: "embalagens", tbLeituras: "leituras", tbAjustes: "ajustes"})[it.t] || "", `${it.obj.Tipo || it.obj.Turno || it.obj.Movimento || ""} · ${it.obj.Pessoa || it.obj.Produto || it.obj.Material || it.obj.Equipamento || ""} · ${it.obj.Produto || ""}`, "dia " + isoBR(it.obj.Data));
@@ -1885,6 +1904,7 @@ const Fila = {
       catch (e) { resto.push(it); if (e.rede) { resto.push(...f.slice(f.indexOf(it) + 1)); break; } }
     }
     LS.set("gm_pendentes", resto); mostrarPendentes();
+    { const m = LS.get("gm_fotos_pedido", {}), usadas = new Set(resto.map(i => i.obj.__fotosDe).filter(Boolean)); Object.keys(m).forEach(k => { if (!usadas.has(k)) delete m[k]; }); LS.set("gm_fotos_pedido", m); }
     if (ok) toast(`${ok} lançamento(s) pendente(s) enviado(s) para a planilha.`);
     if (ok && typeof Carga !== "undefined" && Carga.dia) Carga.carregar(Carga.dia, true);
     return ok;
@@ -1909,7 +1929,7 @@ async function gravar(t, obj, listaEl, descricao, {silencioso = false} = {}) {
     return true;
   } catch (e) {
     if (e.rede) { Fila.guardar(t, obj); obj.__pendente = true; toast("Sem internet: lançamento guardado neste aparelho e será enviado sozinho."); return true; }
-    toast(e.message, {erro: true, ms: 9000}); return false;
+    gravar.ultimoErro = e.message; toast(e.message, {erro: true, ms: 9000}); return false;
   }
 }
 const ultimos = {};
@@ -1956,6 +1976,7 @@ const ED = {
 };
 function editarUltimo(el, u) {
   const cfg = ED[el], est = EDITAVEIS[el]();
+  if (el === "#x-ultimos" && X.pedido.length) { toast("Há um pedido aberto. Lance o pedido (ou tire os produtos dele) antes de editar outro lançamento.", {erro: true}); return; }
   est.editando = u; $("#toast").classList.remove("mostra");
   const av = $(cfg.aviso); av.hidden = false; $("span", av).innerHTML = `Editando: <b>${esc(u.desc)}</b>. Mude o que precisar e toque em Salvar alteração.`;
   const b = $(cfg.btn); b.textContent = "Salvar alteração"; b.classList.add("salvar");
@@ -2118,7 +2139,7 @@ function fechamento(pessoa, produto) {
 /* ======================================================================
    Tela: Expedição
    ====================================================================== */
-const X = {pessoa: null, produto: null, motivo: null, tipo: null, editando: null, fotos: [], fotosRef: null};
+const X = {pessoa: null, produto: null, motivo: null, tipo: null, editando: null, fotos: [], fotosRef: null, pedido: []};
 function produtoDe(nome) { return (App.cad.tbProdutos || []).find(p => p.Produto === nome); }
 /* fardo: 7 pacotes nos produtos de 3 kg (fileira de 42 = 6 fardos); entra na planilha somado aos pacotes */
 function ppdDe(prod) { const p = produtoDe(prod); if (!p) return 0; return num(p["Pacotes por fardo"]) || (num(p["Pacotes por fileira"]) === 42 ? 7 : 0); }
@@ -2302,9 +2323,96 @@ function atualizarX() {
   }
   const pl = normPlaca($("#x-placa").value);
   if (!bloqueio && pl && !placaOk(pl)) bloqueio = "Placa incompleta: use o formato ABC1D23 ou ABC1234.";
-  $("#x-faltando").textContent = falta.length ? "Falta: " + falta.join(", ") + "." : bloqueio;
-  $("#x-lancar").disabled = !!falta.length || !!bloqueio || !!X.enviando;
   X.total = tot;
+  const ped = X.pedido, n = ped.length, editando = !!X.editando;
+  if (!editando && n && !bloqueio) {
+    const o0 = ped[0].obj;
+    if ($("#x-data").value && $("#x-data").value !== o0.Data) bloqueio = `O pedido aberto é do dia ${isoBR(o0.Data)}. Lance ou esvazie o pedido antes de trocar a data.`;
+    else if (X.pessoa && X.pessoa !== o0.Pessoa) bloqueio = `O pedido aberto é de ${o0.Pessoa}. Lance ou esvazie o pedido antes de trocar de motorista.`;
+    else if (X.tipo && X.tipo !== o0.Tipo) bloqueio = `O pedido aberto é de ${o0.Tipo.toLowerCase()}. Lance ou esvazie o pedido antes de trocar o tipo.`;
+  }
+  const itemOk = !falta.length && !bloqueio;
+  // com pedido aberto, o formulário vazio (sem quantidade) não atrapalha: lança só o que já foi incluído
+  const formVazio = !tot;
+  const podeLancar = editando ? itemOk : n ? (!bloqueio && (formVazio || itemOk)) : itemOk;
+  let msg = falta.length ? "Falta: " + falta.join(", ") + "." : bloqueio;
+  if (!editando && n && formVazio && !bloqueio) msg = `Pedido com ${n} ${n > 1 ? "produtos" : "produto"}. Escolha o próximo produto ou lance o pedido.`;
+  $("#x-faltando").textContent = msg;
+  $("#x-lancar").disabled = !podeLancar || !!X.enviando;
+  $("#x-incluir").hidden = editando;
+  $("#x-incluir").disabled = !itemOk || !!X.enviando;
+  const total = n + (!editando && !formVazio && itemOk ? 1 : 0);
+  const rot = editando ? "Salvar alteração" : total > 1 ? `Lançar pedido (${total})` : "Lançar";
+  if (!X.enviando) $("#x-lancar").textContent = rot;
+  $("#x-lancar").dataset.curto = editando ? "Salvar" : total > 1 ? `Lançar (${total})` : "Lançar";
+  desenharPedido();
+}
+function descItemX(obj, nFotos) {
+  const p = produtoDe(obj.Produto), kg = p && p.Unidade === "kg";
+  const tot = kg ? (num(obj.Pacote) || 0) : totalPacotes(obj.Produto, obj.Pallet, obj.Fileira, obj.Pacote);
+  const d = `${obj.Tipo}${obj.Motivo === "Troca" ? " (troca)" : ""} · ${obj.Pessoa}${obj.Placa ? " · placa " + obj.Placa : ""} · ${obj.Produto} · ${fmt(tot, kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
+  return d + (obj.Fotos ? ` · ${nFotos ? nFotos + " foto" + (nFotos > 1 ? "s" : "") : "com fotos"}` : "");
+}
+function montarObjX() {
+  const p = produtoDe(X.produto), kg = p && p.Unidade === "kg";
+  const ruim = RUINS.includes(X.tipo);
+  return {
+    Data: $("#x-data").value, Pessoa: X.pessoa, Produto: X.produto, Tipo: X.tipo,
+    Pallet: kg ? null : (num($("#x-pallet").value) || null), Fileira: kg ? null : (num($("#x-fileira").value) || null),
+    Pacote: ((num($("#x-pacote").value) || 0) + (kg ? 0 : (num($("#x-fardo").value) || 0) * ppdDe(X.produto))) || null,
+    Motivo: ruim ? X.motivo : null, "Cliente final": (X.tipo === "Volta ruim" && X.motivo === "Troca") ? ($("#x-cliente").value.trim().toUpperCase() || null) : null,
+    Lote: ruim ? ($("#x-lote").value.trim() || null) : null, "Observação": $("#x-obs").value.trim() || null,
+    Placa: normPlaca($("#x-placa").value) || null,
+  };
+}
+/* limpa só o produto e a quantidade; tipo, motorista, placa e fotos ficam para o próximo produto */
+function limparItemX() {
+  ["#x-pallet", "#x-fileira", "#x-fardo", "#x-pacote"].forEach(s => $(s).value = 0);
+  $("#x-obs").value = ""; $("#x-cliente").value = ""; $("#x-lote").value = "";
+  X.produto = null; marcarFicha($("#x-produtos"), "");
+  if (RUINS.includes(X.tipo)) { X.motivo = null; marcarFicha($("#x-motivos"), ""); }
+}
+function incluirX() {
+  if (X.editando || $("#x-incluir").disabled) return;
+  const obj = montarObjX();
+  if (obj["Cliente final"]) lembrarCliente(obj["Cliente final"]);
+  X.pedido.push({obj}); Carga.anotar(obj, 1);
+  limparItemX(); atualizarX();
+  toast(`Incluído no pedido: ${obj.Produto}. ${X.pedido.length} ${X.pedido.length > 1 ? "produtos" : "produto"} no pedido.`, {ms: 2500});
+}
+function tirarDoPedido(k, alterar) {
+  const it = X.pedido[k]; if (!it) return;
+  X.pedido.splice(k, 1); Carga.anotar(it.obj, -1);
+  if (!X.pedido.length && X.fotosDoPedido) { X.fotosDoPedido = false; limparFotosX(); } // fotos já gravadas com o resto do pedido
+  if (alterar) {
+    const o = it.obj;
+    X.produto = o.Produto; marcarFicha($("#x-produtos"), o.Produto);
+    if (o.Motivo) { X.motivo = o.Motivo; marcarFicha($("#x-motivos"), o.Motivo); }
+    $("#x-pallet").value = o.Pallet || 0; $("#x-fileira").value = o.Fileira || 0; $("#x-fardo").value = 0; $("#x-pacote").value = o.Pacote || 0;
+    $("#x-cliente").value = o["Cliente final"] || ""; $("#x-lote").value = o.Lote ?? ""; $("#x-obs").value = o["Observação"] || "";
+  }
+  atualizarX();
+}
+function desenharPedido() {
+  const box = $("#x-pedido"), ped = X.pedido;
+  box.hidden = !ped.length || !!X.editando;
+  const lst = $("#x-ped-lista"); lst.innerHTML = "";
+  if (!ped.length) return;
+  const o0 = ped[0].obj;
+  $("#x-ped-tit").textContent = `Pedido de ${o0.Pessoa} · ${o0.Tipo.toLowerCase()} · ${ped.length} ${ped.length > 1 ? "produtos" : "produto"}`;
+  ped.forEach((it, k) => {
+    const o = it.obj, p = produtoDe(o.Produto), kg = p && p.Unidade === "kg";
+    const tot = kg ? (num(o.Pacote) || 0) : totalPacotes(o.Produto, o.Pallet, o.Fileira, o.Pacote);
+    const d = document.createElement("div"); d.className = "item";
+    d.innerHTML = `<span>${esc(o.Produto)}${o.Motivo ? ` <small style="color:#A9C4D4">· ${esc(o.Motivo)}${o["Cliente final"] ? " · " + esc(o["Cliente final"]) : ""}</small>` : ""}</span>`;
+    const ac = document.createElement("div"); ac.className = "acoes";
+    ac.innerHTML = `<span class="q">${fmt(tot, kg ? 1 : 0)} ${kg ? "kg" : "pct"}</span>`;
+    const e = document.createElement("button"); e.type = "button"; e.className = "lapis"; e.innerHTML = LAPIS; e.title = "Alterar";
+    e.setAttribute("aria-label", "Alterar " + o.Produto); e.onclick = () => tirarDoPedido(k, true);
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "Tirar"; x.setAttribute("aria-label", "Tirar " + o.Produto + " do pedido");
+    x.onclick = () => tirarDoPedido(k, false);
+    ac.append(e, x); d.appendChild(ac); lst.appendChild(d);
+  });
 }
 // um lançamento por vez: enquanto as fotos sobem, o botão fica travado (senão o próximo lançamento levaria as fotos deste)
 async function lancarX() {
@@ -2313,6 +2421,7 @@ async function lancarX() {
   try { await lancarX0(); } finally { X.enviando = false; atualizarX(); }
 }
 async function lancarX0() {
+  if (!X.editando && X.pedido.length) return lancarPedidoX();
   const btn = $("#x-lancar"); btn.disabled = true;
   const p = produtoDe(X.produto), kg = p && p.Unidade === "kg";
   const ruim = RUINS.includes(X.tipo);
@@ -2365,6 +2474,65 @@ async function lancarX0() {
   }
   atualizarX();
 }
+/* Lança o pedido: cada produto vira uma linha, todas com a mesma placa e as mesmas fotos (enviadas uma vez só) */
+async function lancarPedidoX() {
+  const btn = $("#x-lancar"); btn.disabled = true; $("#x-incluir").disabled = true;
+  if (X.total) { const cur = montarObjX(); if (cur["Cliente final"]) lembrarCliente(cur["Cliente final"]); X.pedido.push({obj: cur}); Carga.anotar(cur, 1); limparItemX(); }
+  const itens = X.pedido.slice(), placa = normPlaca($("#x-placa").value) || itens[0].obj.Placa || null;
+  itens.forEach(it => { it.obj.Placa = placa; it.obj.Fotos = X.fotosRef || null; });
+  const o0 = itens[0].obj, nFotos = X.fotos.length;
+  const produtos = [...new Set(itens.map(i => i.obj.Produto))];
+  if (nFotos) {
+    const agora = new Date(), dia = o0.Data, prodNome = produtos.length > 1 ? "VARIOS" : produtos[0];
+    const pasta = `${dia.slice(0, 7)}/${dia.slice(8, 10)}/${nomeArquivo(`${String(agora.getHours()).padStart(2, "0")}h${String(agora.getMinutes()).padStart(2, "0")}m${String(agora.getSeconds()).padStart(2, "0")} ${o0.Pessoa}${placa ? " " + placa : ""} ${o0.Tipo} ${prodNome}`)}`;
+    const blobs = X.fotos.map(f => f.blob);
+    btn.textContent = `Enviando ${nFotos} foto${nFotos > 1 ? "s" : ""}…`;
+    try {
+      const ref = await App.store.subirFotos(blobs, pasta, X.fotosRef, {data: o0.Data, pessoa: o0.Pessoa, placa, tipo: o0.Tipo, produto: produtos.length > 1 ? "VARIOS" : produtos[0]});
+      itens.forEach(it => it.obj.Fotos = ref);
+    } catch (e) {
+      if (!e.rede) { toast(e.message, {erro: true, ms: 9000}); atualizarX(); return; }
+      // sem internet: o pedido inteiro fica neste aparelho; as fotos vão com o primeiro produto e a referência é copiada para os demais quando subir
+      try {
+        const chave = "pend-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        await FotoDB.put(chave, await Promise.all(blobs.map(blobParaTexto)));
+        itens.forEach((it, k) => { Carga.anotar(it.obj, -1); Fila.guardar("tbExpedicao", k === 0 ? {...it.obj, __fotos: chave, __pasta: pasta} : {...it.obj, __fotosDe: chave}); });
+        toast(`Sem internet: pedido com ${itens.length} produtos e ${nFotos} foto${nFotos > 1 ? "s" : ""} guardado neste aparelho; vai sozinho quando voltar a conexão.`);
+        X.pedido = []; limparFotosX(); limparItemX(); atualizarX(); return;
+      } catch { toast("Sem internet e sem espaço para guardar as fotos neste aparelho. Tente de novo quando voltar a conexão.", {erro: true, ms: 9000}); atualizarX(); return; }
+    }
+  }
+  btn.textContent = `Lançando ${itens.length} produtos…`;
+  const feitos = []; gravar.ultimoErro = "";
+  for (const it of itens) {
+    const obj = it.obj;
+    Carga.anotar(obj, -1);
+    const ok = await gravar("tbExpedicao", obj, "#x-ultimos", descItemX(obj, nFotos), {silencioso: true});
+    if (!ok) { Carga.anotar(obj, 1); break; }
+    if (!obj.__pendente) Carga.anotar(obj, 1);
+    delete obj.__pendente;
+    X.pedido.splice(X.pedido.indexOf(it), 1); feitos.push(it);
+  }
+  if (placa) { const pl = LS.get("gm_placas", {}); pl[o0.Pessoa] = placa; LS.set("gm_placas", pl); }
+  if (feitos.length) {
+    if (!X.pedido.length) limparFotosX();
+    else { X.fotos = []; X.fotosRef = itens[0].obj.Fotos || X.fotosRef; X.fotosDoPedido = !!X.fotosRef; desenharFotosX(); } // as fotos já subiram: os que sobraram usam as mesmas
+    const sobra = X.pedido.length;
+    const entradas = feitos.map(it => (ultimos["#x-ultimos"] || []).find(u => u.obj === it.obj)).filter(Boolean).reverse(); // desfaz do último para o primeiro
+    const msg = `${App.modo === "planilha" ? "Pedido lançado na planilha" : "Pedido lançado (demonstração)"}: ${o0.Pessoa} · ${feitos.length} ${feitos.length > 1 ? "produtos" : "produto"}${nFotos ? ` · ${nFotos} foto${nFotos > 1 ? "s" : ""}` : ""}.` +
+      (sobra ? ` ${sobra} não ${sobra > 1 ? "foram" : "foi"} (${gravar.ultimoErro || "erro"}) e ${sobra > 1 ? "continuam" : "continua"} no pedido: corrija e lance de novo, ou tire do pedido.` : "");
+    toast(msg, {erro: !!sobra, ms: sobra ? 9000 : 6000, acao: !pode("expedicao", "desfazer") || !entradas.length ? null : async () => {
+      let n = 0;
+      for (const u of entradas) {
+        try { await App.store.desfazer(u.t, u.indice, u.obj); Hist.registrar("Desfez", "expedicao", u.desc); Carga.anotar(u.obj, -1); removerUltimo("#x-ultimos", u.indice, u.t); n++; }
+        catch (e) { toast(e.message, {erro: true}); break; }
+      }
+      if (n) toast(n === entradas.length ? "Pedido desfeito." : `Desfeitos ${n} de ${entradas.length} produtos.`);
+      atualizarX();
+    }});
+  }
+  atualizarX();
+}
 async function adicionarFotos(files) {
   const lista = [...files].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/i.test(f.name));
   if (!lista.length) return;
@@ -2390,7 +2558,7 @@ function desenharFotosX() {
   const n = X.fotos.length;
   $("#x-fotos-n").textContent = n ? `${n} nova${n > 1 ? "s" : ""}${X.fotosRef ? " + as já salvas" : ""}` : X.fotosRef ? "já tem fotos salvas" : "nenhuma";
 }
-function limparFotosX() { X.fotos = []; X.fotosRef = null; desenharFotosX(); }
+function limparFotosX() { X.fotos = []; X.fotosRef = null; X.fotosDoPedido = false; desenharFotosX(); }
 function limparX() {
   limparFotosX();
   ["#x-pallet", "#x-fileira", "#x-fardo", "#x-pacote"].forEach(s => $(s).value = 0);
@@ -3474,7 +3642,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   ["#x-novo-nome", "#x-novo-cod"].forEach(s => $(s).addEventListener("input", conferirNovo));
   $("#x-novo-nome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); salvarNovo(); } });
   $("#x-novo-cod").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); salvarNovo(); } });
-  $("#x-lancar").onclick = lancarX; $("#p-lancar").onclick = lancarP; $("#e-lancar").onclick = lancarE; $("#l-lancar").onclick = lancarL; $("#a-lancar").onclick = lancarA;
+  $("#x-lancar").onclick = lancarX; $("#x-incluir").onclick = incluirX; $("#p-lancar").onclick = lancarP; $("#e-lancar").onclick = lancarE; $("#l-lancar").onclick = lancarL; $("#a-lancar").onclick = lancarA;
   $("#h-atualizar").onclick = desenharHoje;
   // mudar o "De" puxa o "Até" junto enquanto ninguém mexeu nele (modo um dia só)
   $("#h-data").addEventListener("change", () => { const a = $("#h-ate"); if (!a.dataset.manual || a.value < $("#h-data").value) { a.value = $("#h-data").value; delete a.dataset.manual; } desenharHoje(); });
@@ -3512,13 +3680,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   desenharClientes(); montarConfig(); mostrarPendentes();
   const BARRA = {expedicao: ["#x-total", "#x-faltando", "#x-lancar", "#x-alvo"], producao: ["#p-total", "#p-faltando", "#p-lancar", "#p-alvo"],
     embalagens: ["#e-qtd", "#e-faltando", "#e-lancar", "#e-alvo"], leituras: ["#l-total", "#l-faltando", "#l-lancar", "#l-alvo"], ajustes: ["#a-qtd", "#a-faltando", "#a-lancar", "#a-alvo"]};
+  $("#b-incluir").onclick = () => $("#x-incluir").click();
   $("#b-lancar").onclick = () => { const t = LS.get("gm_tela", "expedicao"); if (BARRA[t]) $(BARRA[t][2]).click(); };
   setInterval(() => {
     const t = LS.get("gm_tela", "expedicao"), cfg = BARRA[t]; $("#barra").hidden = !cfg; if (!cfg) return;
     const n = $(cfg[0]); $("#b-num").textContent = n.tagName === "INPUT" ? (n.value || "0") : n.textContent;
     $("#b-txt").textContent = $(cfg[1]).textContent || $(cfg[3]).textContent;
     $("#b-lancar").disabled = $(cfg[2]).disabled;
-    const salvar = $(cfg[2]).classList.contains("salvar"); $("#b-lancar").textContent = salvar ? "Salvar" : "Lançar"; $("#b-lancar").classList.toggle("salvar", salvar);
+    const salvar = $(cfg[2]).classList.contains("salvar"); $("#b-lancar").textContent = salvar ? "Salvar" : ($(cfg[2]).dataset.curto || "Lançar"); $("#b-lancar").classList.toggle("salvar", salvar);
+    const inc = t === "expedicao" && !$("#x-incluir").hidden; $("#b-incluir").hidden = !inc; if (inc) $("#b-incluir").disabled = $("#x-incluir").disabled;
   }, 250);
   if (App.modo !== "planilha") semearDemo();
   // trava de cada tela conforme o usuário (depois de cada atualização da tela)
@@ -3529,7 +3699,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window[fn] = function (...a) {
       const r = orig.apply(this, a);
       const tv = travaLancar(tela, !!ed());
-      if (tv) { $(btn).disabled = true; $(falta).textContent = tv; }
+      if (tv) { $(btn).disabled = true; $(falta).textContent = tv; if (tela === "expedicao") $("#x-incluir").disabled = true; }
       return r;
     };
   });
