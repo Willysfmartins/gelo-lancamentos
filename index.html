@@ -1974,6 +1974,28 @@ const ED = {
   "#p-ultimos": {aviso: "#p-editando", btn: "#p-lancar", rotulo: "Lançar produção", abrir: o => abrirP(o), limpar: () => limparP(), atualizar: () => atualizarP()},
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
+/* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
+const VERSAO = "20261127112835";
+function ocupadoAgora() {
+  if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
+  return [...document.querySelectorAll("dialog")].some(d => d.open);
+}
+function vigiarVersao() {
+  if (!/^\d+$/.test(VERSAO) || !/^https?:/.test(location.protocol)) return;
+  let avisado = false;
+  const conferir = async () => {
+    try {
+      const r = await fetch(location.pathname + "?v=" + Date.now(), {cache: "no-store"}); if (!r.ok) return;
+      const m = (await r.text()).match(/const VERSAO = "(\d+)"/);
+      if (!m || m[1] === VERSAO) return;
+      const ir = () => location.replace(location.pathname + "?v=" + m[1] + location.hash);
+      if (!ocupadoAgora()) return ir();
+      if (!avisado) { avisado = true; toast("Saiu uma versão nova do site. Termine este lançamento e toque em Atualizar.", {acao: ir, rotulo: "Atualizar", ms: 30000}); }
+    } catch {}
+  };
+  setTimeout(conferir, 5000); setInterval(conferir, 120000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") conferir(); });
+}
 function editarUltimo(el, u) {
   const cfg = ED[el], est = EDITAVEIS[el]();
   if (el === "#x-ultimos" && X.pedido.length) { toast("Há um pedido aberto. Lance o pedido (ou tire os produtos dele) antes de editar outro lançamento.", {erro: true}); return; }
@@ -3691,6 +3713,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const inc = t === "expedicao" && !$("#x-incluir").hidden; $("#b-incluir").hidden = !inc; if (inc) $("#b-incluir").disabled = $("#x-incluir").disabled;
   }, 250);
   if (App.modo !== "planilha") semearDemo();
+  vigiarVersao();
   // trava de cada tela conforme o usuário (depois de cada atualização da tela)
   [["atualizarX", "expedicao", "#x-lancar", "#x-faltando", () => X.editando], ["atualizarP", "producao", "#p-lancar", "#p-faltando", () => P.editando],
    ["atualizarE", "embalagens", "#e-lancar", "#e-faltando", () => null], ["atualizarL", "leituras", "#l-lancar", "#l-faltando", () => L.editando],
