@@ -448,6 +448,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       <div class="contadores">
         <div class="contador" data-campo="pallet"><label for="x-pallet">Pallet<small id="x-ppp"></small></label><button type="button" data-d="-1" aria-label="Menos um pallet">−</button><input id="x-pallet" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais um pallet">+</button></div>
         <div class="contador" data-campo="fileira"><label for="x-fileira">Fileira<small id="x-ppf"></small></label><button type="button" data-d="-1" aria-label="Menos uma fileira">−</button><input id="x-fileira" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais uma fileira">+</button></div>
+        <div class="contador" data-campo="fardo"><label for="x-fardo">Fardo<small id="x-ppd"></small></label><button type="button" data-d="-1" aria-label="Menos um fardo">−</button><input id="x-fardo" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais um fardo">+</button></div>
         <div class="contador" data-campo="pacote"><label for="x-pacote" id="x-pacote-rot">Pacote</label><button type="button" data-d="-1" aria-label="Menos um pacote">−</button><input id="x-pacote" inputmode="decimal" value="0"><button type="button" data-d="1" aria-label="Mais um pacote">+</button></div>
       </div>
       <div class="fech" id="x-fech" hidden aria-live="polite"></div>
@@ -473,7 +474,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 <section class="tela" id="t-producao" aria-labelledby="h-producao">
   <h1 class="titulo" id="h-producao">Produção</h1>
   <div class="aviso-edicao" id="p-editando" hidden role="status"><span></span><button type="button" id="p-cancelar">Cancelar edição</button></div>
-  <p class="sub">Uma linha por produto e turno: pallet, fileira e pacote, depois o parcial e a puxada. O parcial é igual ou maior que a produção; perda = (parcial − produção) + puxada, e ela tem que ser menor que a produção.</p>
+  <p class="sub">Uma linha por produto e turno: pallet, fileira, fardo e pacote, depois o parcial e a puxada. O parcial é igual ou maior que a produção; perda = (parcial − produção) + puxada, e ela tem que ser menor que a produção.</p>
   <div class="grade">
     <div class="coluna">
       <div class="bloco"><div class="linha-campos">
@@ -496,6 +497,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       <div class="contadores">
         <div class="contador" data-campo="pallet"><label for="p-pallet">Pallet<small id="p-ppp"></small></label><button type="button" data-d="-1" aria-label="Menos um pallet">−</button><input id="p-pallet" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais um pallet">+</button></div>
         <div class="contador" data-campo="fileira"><label for="p-fileira">Fileira<small id="p-ppf"></small></label><button type="button" data-d="-1" aria-label="Menos uma fileira">−</button><input id="p-fileira" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais uma fileira">+</button></div>
+        <div class="contador" data-campo="fardo"><label for="p-fardo">Fardo<small id="p-ppd"></small></label><button type="button" data-d="-1" aria-label="Menos um fardo">−</button><input id="p-fardo" inputmode="numeric" value="0"><button type="button" data-d="1" aria-label="Mais um fardo">+</button></div>
         <div class="contador" data-campo="pacote"><label for="p-pacote" id="p-pacote-rot">Pacote</label><button type="button" data-d="-1" aria-label="Menos um pacote">−</button><input id="p-pacote" inputmode="decimal" value="0"><button type="button" data-d="1" aria-label="Mais um pacote">+</button></div>
       </div>
       <div class="mostrador" aria-live="polite"><span class="num zero" id="p-total">0</span><span class="uni" id="p-uni">pacotes</span><span class="conta" id="p-conta"></span></div>
@@ -2118,6 +2120,8 @@ function fechamento(pessoa, produto) {
    ====================================================================== */
 const X = {pessoa: null, produto: null, motivo: null, tipo: null, editando: null, fotos: [], fotosRef: null};
 function produtoDe(nome) { return (App.cad.tbProdutos || []).find(p => p.Produto === nome); }
+/* fardo: 7 pacotes nos produtos de 3 kg (fileira de 42 = 6 fardos); entra na planilha somado aos pacotes */
+function ppdDe(prod) { const p = produtoDe(prod); if (!p) return 0; return num(p["Pacotes por fardo"]) || (num(p["Pacotes por fileira"]) === 42 ? 7 : 0); }
 function totalPacotes(prod, pal, fil, pac) {
   const p = produtoDe(prod); if (!p) return 0;
   return (num(pal) || 0) * (num(p["Pacotes por pallet"]) || 0) + (num(fil) || 0) * (num(p["Pacotes por fileira"]) || 0) + (num(pac) || 0);
@@ -2249,11 +2253,14 @@ function atualizarX() {
   $("#x-pacote-rot").textContent = kg ? "Kg" : "Pacote";
   $("#x-ppp").textContent = p && !kg ? `× ${fmt(p["Pacotes por pallet"])}` : "";
   $("#x-ppf").textContent = p && !kg ? `× ${fmt(p["Pacotes por fileira"])}` : "";
+  const ppd = kg ? 0 : ppdDe(X.produto), fard = ppd ? (num($("#x-fardo").value) || 0) : 0;
+  $(".contador[data-campo=fardo]", $("#t-expedicao")).classList.toggle("oculto", !!(p && !ppd));
+  $("#x-ppd").textContent = ppd ? `× ${ppd}` : "";
   const pal = $("#x-pallet").value, fil = $("#x-fileira").value, pac = $("#x-pacote").value;
-  const tot = kg ? (num(pac) || 0) : totalPacotes(X.produto, pal, fil, pac);
+  const tot = kg ? (num(pac) || 0) : totalPacotes(X.produto, pal, fil, pac) + fard * ppd;
   const el = $("#x-total"); el.textContent = fmt(tot, kg ? 1 : 0); el.classList.toggle("zero", !tot);
   $("#x-uni").textContent = kg ? "kg" : "pacotes";
-  $("#x-conta").textContent = p && !kg && tot ? `${fmt(num(pal) || 0)}×${fmt(p["Pacotes por pallet"])} + ${fmt(num(fil) || 0)}×${fmt(p["Pacotes por fileira"])} + ${fmt(num(pac) || 0)}  ·  ${fmt(tot * (num(p["Peso kg"]) || 0), 1)} kg` : "";
+  $("#x-conta").textContent = p && !kg && tot ? `${fmt(num(pal) || 0)}×${fmt(p["Pacotes por pallet"])} + ${fmt(num(fil) || 0)}×${fmt(p["Pacotes por fileira"])}${fard ? ` + ${fmt(fard)}×${ppd}` : ""} + ${fmt(num(pac) || 0)}  ·  ${fmt(tot * (num(p["Peso kg"]) || 0), 1)} kg` : "";
   $("#x-alvo").innerHTML = [X.tipo, X.pessoa, X.produto].some(Boolean)
     ? `<b>${esc(X.tipo || "—")}</b> · ${esc(X.pessoa || "sem pessoa")} · ${esc(X.produto || "sem produto")}${X.motivo ? " · " + esc(X.motivo) : ""}`
     : "Escolha o tipo, a pessoa e o produto.";
@@ -2312,7 +2319,7 @@ async function lancarX0() {
   const obj = {
     Data: $("#x-data").value, Pessoa: X.pessoa, Produto: X.produto, Tipo: X.tipo,
     Pallet: kg ? null : (num($("#x-pallet").value) || null), Fileira: kg ? null : (num($("#x-fileira").value) || null),
-    Pacote: num($("#x-pacote").value) || null,
+    Pacote: ((num($("#x-pacote").value) || 0) + (kg ? 0 : (num($("#x-fardo").value) || 0) * ppdDe(X.produto))) || null,
     Motivo: ruim ? X.motivo : null, "Cliente final": (X.tipo === "Volta ruim" && X.motivo === "Troca") ? ($("#x-cliente").value.trim().toUpperCase() || null) : null,
     Lote: ruim ? ($("#x-lote").value.trim() || null) : null, "Observação": $("#x-obs").value.trim() || null,
     Placa: normPlaca($("#x-placa").value) || null,
@@ -2350,7 +2357,7 @@ async function lancarX0() {
   if (ok) {
     if (obj.Placa) { const pl = LS.get("gm_placas", {}); pl[obj.Pessoa] = obj.Placa; LS.set("gm_placas", pl); }
     limparFotosX();
-    ["#x-pallet", "#x-fileira", "#x-pacote"].forEach(s => $(s).value = 0);
+    ["#x-pallet", "#x-fileira", "#x-fardo", "#x-pacote"].forEach(s => $(s).value = 0);
     $("#x-obs").value = ""; $("#x-cliente").value = ""; $("#x-lote").value = "";
     X.produto = null; marcarFicha($("#x-produtos"), "");
     if (ruim) { X.motivo = null; marcarFicha($("#x-motivos"), ""); }
@@ -2386,7 +2393,7 @@ function desenharFotosX() {
 function limparFotosX() { X.fotos = []; X.fotosRef = null; desenharFotosX(); }
 function limparX() {
   limparFotosX();
-  ["#x-pallet", "#x-fileira", "#x-pacote"].forEach(s => $(s).value = 0);
+  ["#x-pallet", "#x-fileira", "#x-fardo", "#x-pacote"].forEach(s => $(s).value = 0);
   $("#x-obs").value = ""; $("#x-cliente").value = ""; $("#x-lote").value = "";
   X.produto = null; marcarFicha($("#x-produtos"), "");
   if (RUINS.includes(X.tipo)) { X.motivo = null; marcarFicha($("#x-motivos"), ""); }
@@ -2397,7 +2404,7 @@ function abrirX(o) {
   X.tipo = o.Tipo; X.segTipo.set(o.Tipo); X.motivo = null; aoTipo();
   X.motivo = o.Motivo || null; marcarFicha($("#x-motivos"), X.motivo || "");
   X.produto = o.Produto; marcarFicha($("#x-produtos"), o.Produto);
-  $("#x-pallet").value = o.Pallet || 0; $("#x-fileira").value = o.Fileira || 0; $("#x-pacote").value = o.Pacote || 0;
+  $("#x-pallet").value = o.Pallet || 0; $("#x-fileira").value = o.Fileira || 0; $("#x-fardo").value = 0; $("#x-pacote").value = o.Pacote || 0;
   $("#x-cliente").value = o["Cliente final"] || ""; $("#x-lote").value = o.Lote ?? ""; $("#x-obs").value = o["Observação"] || ""; $("#x-placa").value = o.Placa || "";
   X.fotos = []; X.fotosRef = o.Fotos || null; desenharFotosX();
 }
@@ -2474,13 +2481,16 @@ function atualizarP() {
   $("#p-pacote-rot").textContent = kg ? "Kg" : "Pacote";
   $("#p-ppp").textContent = p && !kg ? `× ${fmt(p["Pacotes por pallet"])}` : "";
   $("#p-ppf").textContent = p && !kg ? `× ${fmt(p["Pacotes por fileira"])}` : "";
+  const ppd = kg ? 0 : ppdDe(P.produto), fard = ppd ? (num($("#p-fardo").value) || 0) : 0;
+  $(".contador[data-campo=fardo]", $("#t-producao")).classList.toggle("oculto", !!(p && !ppd));
+  $("#p-ppd").textContent = ppd ? `× ${ppd}` : "";
   const pal = $("#p-pallet").value, fil = $("#p-fileira").value, pac = $("#p-pacote").value;
-  const q = kg ? (num(pac) || 0) : totalPacotes(P.produto, pal, fil, pac);
+  const q = kg ? (num(pac) || 0) : totalPacotes(P.produto, pal, fil, pac) + fard * ppd;
   const par = kg ? null : num($("#p-parcial").value), puxN = kg ? null : num($("#p-puxada").value), pux = puxN || 0;
   const pinf = kg ? num($("#p-perdainf").value) : null;
   $("#p-total").textContent = fmt(q, kg ? 1 : 0); $("#p-total").classList.toggle("zero", !q);
   $("#p-uni").textContent = kg ? "kg produzidos" : "pacotes produzidos";
-  $("#p-conta").textContent = p && !kg && q ? `${fmt(num(pal) || 0)}×${fmt(p["Pacotes por pallet"])} + ${fmt(num(fil) || 0)}×${fmt(p["Pacotes por fileira"])} + ${fmt(num(pac) || 0)}` : "";
+  $("#p-conta").textContent = p && !kg && q ? `${fmt(num(pal) || 0)}×${fmt(p["Pacotes por pallet"])} + ${fmt(num(fil) || 0)}×${fmt(p["Pacotes por fileira"])}${fard ? ` + ${fmt(fard)}×${ppd}` : ""} + ${fmt(num(pac) || 0)}` : "";
   // regras do parcial e da puxada
   const erros = [];
   const parBaixo = par != null && q > 0 && par < q, puxNeg = puxN != null && puxN < 0;
@@ -2506,7 +2516,7 @@ async function lancarP() {
   const p = produtoDe(P.produto), kg = p && p.Unidade === "kg";
   const obj = {Data: $("#p-data").value, Turno: P.turno, Produto: P.produto,
     Pallet: kg ? null : (num($("#p-pallet").value) || null), Fileira: kg ? null : (num($("#p-fileira").value) || null),
-    Pacote: num($("#p-pacote").value) || null,
+    Pacote: ((num($("#p-pacote").value) || 0) + (kg ? 0 : (num($("#p-fardo").value) || 0) * ppdDe(P.produto))) || null,
     Parcial: kg ? null : num($("#p-parcial").value), Puxada: kg ? null : num($("#p-puxada").value), Lote: $("#p-lote").value.trim() || null,
     "Perda informada": kg ? num($("#p-perdainf").value) : null, "Observação": $("#p-obs").value.trim() || null};
   const desc = `${P.turno} · ${P.produto} · ${fmt(P.total, kg ? 1 : 0)} ${kg ? "kg" : "pct"}`;
@@ -2516,14 +2526,14 @@ async function lancarP() {
   atualizarP();
 }
 function limparP() {
-  ["#p-pallet", "#p-fileira", "#p-pacote"].forEach(s => $(s).value = 0); ["#p-parcial", "#p-puxada", "#p-perdainf", "#p-obs"].forEach(s => $(s).value = "");
+  ["#p-pallet", "#p-fileira", "#p-fardo", "#p-pacote"].forEach(s => $(s).value = 0); ["#p-parcial", "#p-puxada", "#p-perdainf", "#p-obs"].forEach(s => $(s).value = "");
   P.produto = null; marcarFicha($("#p-produtos"), ""); loteP();
 }
 function abrirP(o) {
   $("#p-data").value = o.Data;
   P.turno = o.Turno; P.seg.set(o.Turno);
   P.produto = o.Produto; marcarFicha($("#p-produtos"), o.Produto);
-  $("#p-pallet").value = o.Pallet || 0; $("#p-fileira").value = o.Fileira || 0; $("#p-pacote").value = o.Pacote || 0;
+  $("#p-pallet").value = o.Pallet || 0; $("#p-fileira").value = o.Fileira || 0; $("#p-fardo").value = 0; $("#p-pacote").value = o.Pacote || 0;
   $("#p-parcial").value = o.Parcial ?? ""; $("#p-puxada").value = o.Puxada ?? ""; $("#p-perdainf").value = o["Perda informada"] ?? "";
   $("#p-obs").value = o["Observação"] || "";
   const l = $("#p-lote"); l.value = o.Lote || "";
