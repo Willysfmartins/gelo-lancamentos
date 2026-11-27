@@ -1329,6 +1329,10 @@ const Antigo = {
     let alt = LS.get("gm_pessoas_alt", {});
     if (PROXY() && Acesso.sessao) { try { alt = await Acesso.api("GET", "/pessoas"); LS.set("gm_pessoas_alt", alt); } catch {} }
     c.tbPessoas = c.tbPessoas.map(p => { const a = alt[normNome(p.Nome)] || alt[p.Nome]; return a ? {...p, ...a} : p; });
+    // pessoas cadastradas pelo site (ficam no intermediário, valem para todos os aparelhos)
+    const tem = new Set(c.tbPessoas.map(p => normNome(p.Nome)));
+    Object.entries(alt).filter(([n, a]) => a.Novo === "Sim" && !tem.has(normNome(n))).forEach(([n, a], i) =>
+      c.tbPessoas.push({ID: 1000 + i, Nome: n, "Código": a["Código"] || null, Tipo: a.Tipo || "Cliente", "Entra no ranking": a.Tipo === "Motorista" ? "Sim" : "Não", "Na tela": a["Na tela"] || "Sim", Ativo: a.Ativo || "Sim", ...a}));
     return c;
   },
   async pessoas() { return (await this.cadastros()).tbPessoas; },
@@ -1360,6 +1364,10 @@ const Antigo = {
 
   async adicionar(t, obj) {
     if (t === "tbExpedicao") { const r = await this.addExpedicao(obj); await this.saldosDepois(obj); return r; }
+    if (t === "tbPessoas") {
+      if (!PROXY()) throw new Error("No modelo antigo os nomes ficam na aba 1 do arquivo do mês; cadastre lá.");
+      return this.alterarPessoa(obj.Nome, {Novo: "Sim", Tipo: obj.Tipo, "Código": String(obj["Código"] ?? "").replace(/^'/, ""), "Na tela": "Sim", Ativo: "Sim"});
+    }
     if (t === "tbProducao") return this.addProducao(obj);
     if (t === "tbLeituras") return this.addLeitura(obj);
     if (t === "tbEmbalagens") return this.addEmbalagem(obj);
@@ -2077,7 +2085,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127145229";
+const VERSAO = "20261127150201";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -2921,7 +2929,9 @@ async function salvarNovo() {
     if (App.modo === "planilha") LS.set("gm_cad_cache", App.cad);
     abrirNovo(false); $("#x-busca").value = "";
     X.pessoa = nome; desenharPessoas(); marcarFicha($("#x-pessoas"), nome); atualizarX();
-    toast(`${NOVO.tipo === "Motorista" ? "Motorista" : "Cliente"} cadastrado${App.modo === "planilha" ? " na planilha" : " (demonstração)"}: ${nome}`);
+    toast(App.store === Antigo
+      ? `${NOVO.tipo === "Motorista" ? "Motorista" : "Cliente"} cadastrado: ${nome}. Para lançar saída ou volta dele, o nome precisa estar num quadro da aba 1 da planilha do mês.`
+      : `${NOVO.tipo === "Motorista" ? "Motorista" : "Cliente"} cadastrado${App.modo === "planilha" ? " na planilha" : " (demonstração)"}: ${nome}`, {ms: App.store === Antigo ? 9000 : 4000});
     const f = $(`#x-pessoas .ficha[data-valor="${CSS.escape(nome)}"]`); if (f) f.scrollIntoView({block: "nearest"});
   } catch (e) {
     $("#x-novo-msg").textContent = e.rede ? "Sem internet: não deu para cadastrar agora. Tente de novo quando voltar a conexão." : e.message;
