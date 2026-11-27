@@ -250,11 +250,33 @@ table.dados th{background:var(--aco);color:#fff;text-align:left;padding:9px 10px
 table.dados td{padding:8px 10px;border-bottom:1px solid var(--linha)}
 table.dados td.n,table.dados th.n{text-align:right;font-variant-numeric:tabular-nums}
 table.dados tr.total td{font-weight:700;background:var(--ciano-claro)}
+.abre-nome{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:6px 0;min-height:36px;font:inherit;color:var(--aco);font-weight:600;text-align:left;cursor:pointer}
+.abre-nome::before{content:"";width:7px;height:7px;border-right:2px solid var(--ciano-escuro);border-bottom:2px solid var(--ciano-escuro);transform:rotate(-45deg);transition:transform .15s;flex-shrink:0;margin-right:3px}
+.abre-nome[aria-expanded=true]::before{transform:rotate(45deg)}
+.abre-nome:hover,.abre-nome:focus-visible{color:var(--ciano-escuro);text-decoration:underline}
+table.dados tr.aberto > td{background:var(--ciano-claro)}
+table.dados tr.detalhe > td{padding:0 0 10px 18px;background:var(--ciano-claro)}
+.det-cx{max-width:100%}
+table.dados tr.detalhe table{width:100%;background:#fff;border:1px solid var(--linha);border-radius:var(--r-s);font-size:13.5px}
+table.dados tr.detalhe table td,table.dados tr.detalhe table th{padding:6px 8px}
+table.dados tr.detalhe table{font-size:12.5px}
+table.dados tr.detalhe table td,table.dados tr.detalhe table th{padding:5px 6px}
+table.dados tr.detalhe .lapis-claro,table.dados tr.detalhe .lixo-claro,table.dados tr.detalhe .cam-claro{width:36px;height:34px}
+table.dados tr.detalhe td.acao,table.dados tr.detalhe th.acao{width:1%;text-align:left}
+table.dados tr.detalhe td.acao > *{margin:0 4px 0 0}
+#h-prod tr.detalhe > td{padding-left:8px}
+.abre-nome small{white-space:nowrap}
+#h-prod tr.detalhe td,#h-prod tr.detalhe th{position:static!important;box-shadow:none!important}
+#h-prod tr.detalhe th{background:var(--aco)!important}
+#h-prod tr.detalhe td{background:#fff!important}
+#h-prod tr.detalhe > td{background:var(--ciano-claro)!important}
+table.dados tr.grupo td{background:#F3F7FA;color:var(--nevoa);font-size:12.5px;font-weight:600;padding-top:14px}
 #h-estoque td.final{font-weight:700;background:var(--ciano-claro)}
 #h-estoque tr.negativo td{background:var(--erro-claro)}
 #h-prod td.pp{line-height:1.15;white-space:nowrap}
 @media (max-width:960px){
   #h-prod{font-size:13.5px}
+  table.dados.abre .det-cx{position:sticky;left:0;width:calc(100vw - 80px);overflow-x:auto}
   #h-prod th,#h-prod td{padding:8px 7px}
   #h-prod th:first-child,#h-prod td:first-child{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 var(--linha)}
   #h-prod th:first-child{background:var(--aco);z-index:2}
@@ -626,13 +648,11 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
     <p class="nota-est">Estoque final = anterior + produção − saída + volta boa − perdas + ajustes. A volta ruim (com as trocas) não volta ao estoque; aparece só para conferência.</p></div>
   <div class="grade resumo">
     <div class="coluna">
-      <div class="bloco" data-parte="fechamento"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><div class="rolagem"><table class="dados" id="h-mot"></table></div></div>
-      <div class="bloco" data-parte="lancexp"><div class="rot">Todos os lançamentos de expedição do dia <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-lista"></table></div></div>
+      <div class="bloco" data-parte="fechamento"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><p class="ajuda-maq" id="h-mot-ajuda">Toque no nome para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-mot"></table></div></div>
     </div>
     <div class="coluna">
       <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div><p class="nota" id="h-motivos-nota" hidden></p></div>
-      <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><div class="rolagem" style="max-height:none"><table class="dados" id="h-prod"></table></div>
-    <div class="rot" style="margin-top:16px">Lançamentos de produção <span>toque no lápis para editar</span></div><div class="rolagem"><table class="dados" id="h-prod-lista"></table></div></div>
+      <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><p class="ajuda-maq" id="h-prod-ajuda">Toque no produto para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-prod"></table></div></div>
       <div class="bloco" data-parte="maquinas"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
     </div>
   </div>
@@ -1984,7 +2004,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127113641";
+const VERSAO = "20261127114944";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -2043,10 +2063,28 @@ async function cancelarDoResumo(b, r, doDia, tot) {
   }
   b.disabled = true;
   try {
-    await App.store.desfazer("tbExpedicao", r.__i, r);
+    const obj = {...r}; delete obj.__i;
+    await App.store.desfazer("tbExpedicao", r.__i, obj);
     Hist.registrar("Cancelou", "expedicao", descX(r), "pelo Resumo do dia · dia " + isoBR(r.Data));
     toast(`Lançamento cancelado: ${descX(r)}`);
     if (Carga.dia === r.Data) Carga.carregar(r.Data, true);
+    await desenharHoje();
+  } catch (e) { toast(e.message, {erro: true, ms: 9000}); b.disabled = false; }
+}
+/* Cancela um lançamento de produção direto do Resumo do dia (dois toques no lixo). */
+async function cancelarProducaoDoResumo(b, r) {
+  if (!b.dataset.conf) {
+    b.dataset.conf = "1"; b.classList.add("confirmar"); b.title = "Toque de novo para cancelar";
+    toast(`Toque de novo no lixo para cancelar: ${descP(r)}`, {ms: 4000});
+    setTimeout(() => { delete b.dataset.conf; b.classList.remove("confirmar"); b.title = "Cancelar lançamento"; }, 4000);
+    return;
+  }
+  b.disabled = true;
+  const obj = {...r}; delete obj.__i;
+  try {
+    await App.store.desfazer("tbProducao", r.__i, obj);
+    Hist.registrar("Cancelou", "producao", descP(obj), "pelo Resumo do dia · dia " + isoBR(r.Data));
+    toast(`Lançamento cancelado: ${descP(obj)}`);
     await desenharHoje();
   } catch (e) { toast(e.message, {erro: true, ms: 9000}); b.disabled = false; }
 }
@@ -3026,6 +3064,7 @@ async function desenharMaquinas(P) {
   } catch (e) { $("#h-maq-info").textContent = ""; $("#h-maq").innerHTML = `<tr><td class="vazio">Não deu para ler as máquinas: ${esc(e.message)}</td></tr>`; }
 }
 async function desenharHoje() {
+  desenharHoje.abertos ||= new Set();
   const P = periodoResumo(), dia = P.de; $("#h-info").textContent = "carregando…";
   const tela = $("#t-hoje"); tela.classList.add("carregando"); clearTimeout(desenharHoje._t);
   desenharHoje._t = setTimeout(() => tela.classList.remove("carregando"), 120000);
@@ -3051,19 +3090,43 @@ async function desenharHoje() {
     const vend = m => m.s - m.b - m.r - m.t;
     const pct = m => m.s ? fmt(vend(m) / m.s * 100, 1) + "%" : "–";
     const fecha = n => !Object.entries(porProd).some(([k, v]) => k.startsWith(n + "|") && v < 0);
-    $("#h-mot").innerHTML = nomes.length ? `<tr><th>Motorista</th><th class="n">Carregou</th><th class="n">Volta boa</th><th class="n">Volta ruim</th><th class="n">Vendido</th><th class="n">%</th><th>Fecha?</th></tr>` +
-      nomes.map(n => `<tr${fecha(n) ? "" : ' style="background:var(--erro-claro)"'}><td>${esc(n)}</td><td class="n">${fmt(mot[n].s)}</td><td class="n">${fmt(mot[n].b)}</td><td class="n">${fmt(mot[n].r)}</td><td class="n"><b>${fmt(vend(mot[n]))}</b></td><td class="n">${pct(mot[n])}</td><td>${fecha(n) ? '<span class="tag bom">Fecha</span>' : '<span class="tag perda">Voltou mais que carregou</span>'}</td></tr>`).join("") +
-      `<tr class="total"><td>Total</td><td class="n">${fmt(T.s)}</td><td class="n">${fmt(T.b)}</td><td class="n">${fmt(T.r)}</td><td class="n">${fmt(vend(T))}</td><td class="n">${pct(T)}</td><td></td></tr>`
-      : `<tr><td class="vazio">Nenhum lançamento de motorista em ${P.rot}.</td></tr>`;
     const tagTipo = t => `<span class="tag ${t === "Volta boa" ? "bom" : t === "Perda" ? "perda" : RUINS.includes(t) ? "ruim" : ""}">${esc(t)}</span>`;
-    const colData = r => P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`;
-    $("#h-lista").innerHTML = doDia.length ? `<tr>${P.umDia ? "" : "<th>Data</th>"}<th>Pessoa</th><th>Tipo</th><th>Produto</th><th class="n">Qtd</th><th>Motivo</th><th class="acao"><span class="sr">Fotos e editar</span></th></tr>` +
-      doDia.map((r, k) => `<tr>${colData(r)}<td>${esc(r.Pessoa)}${r.Placa ? `<small class="placa">${esc(r.Placa)}</small>` : ""}</td><td>${tagTipo(r.Tipo)}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td>` +
-        `<td class="acao">${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}">${LAPIS}</button><button type="button" class="lixo-claro" data-k="${k}" title="Cancelar lançamento" aria-label="Cancelar: ${esc(descX(r))}">${LIXO}</button>` : ""}</td></tr>`).join("")
+    const verLanc = pode("hoje", "lancexp");
+    // outras pessoas (clientes e internos): aparecem abaixo, fora do fechamento
+    const outros = {};
+    doDia.filter(r => !nomes.includes(r.Pessoa)).forEach(r => {
+      const o = (outros[r.Pessoa] ||= {s: 0, b: 0, r: 0, n: 0, kg: 0}); const q = tot(r); o.n++;
+      if (grupoProd[r.Produto] === "Granel") o.kg += r.Tipo === "Saída" ? q : 0;
+      else if (r.Tipo === "Saída") o.s += q; else if (r.Tipo === "Volta boa") o.b += q; else if (RUINS.includes(r.Tipo)) o.r += q;
+    });
+    const nomesOutros = Object.keys(outros).sort((a, b) => outros[b].s - outros[a].s || a.localeCompare(b));
+    const nomeCel = (n, qtd) => verLanc ? `<button type="button" class="abre-nome" data-pessoa="${esc(n)}" aria-expanded="false">${esc(n)} <small style="color:var(--nevoa);font-weight:400">${qtd}</small></button>` : esc(n);
+    const nLanc = n => { const c = doDia.filter(r => r.Pessoa === n).length; return `${c} lanç.`; };
+    $("#h-mot").innerHTML = (nomes.length || nomesOutros.length) ? `<tr><th>Motorista</th><th class="n">Carregou</th><th class="n">Volta boa</th><th class="n">Volta ruim</th><th class="n">Vendido</th><th class="n">%</th><th>Fecha?</th></tr>` +
+      nomes.map(n => `<tr data-linha="${esc(n)}"${fecha(n) ? "" : ' style="background:var(--erro-claro)"'}><td>${nomeCel(n, nLanc(n))}</td><td class="n">${fmt(mot[n].s)}</td><td class="n">${fmt(mot[n].b)}</td><td class="n">${fmt(mot[n].r)}</td><td class="n"><b>${fmt(vend(mot[n]))}</b></td><td class="n">${pct(mot[n])}</td><td>${fecha(n) ? '<span class="tag bom">Fecha</span>' : '<span class="tag perda">Voltou mais que carregou</span>'}</td></tr>`).join("") +
+      (nomes.length ? `<tr class="total"><td>Total</td><td class="n">${fmt(T.s)}</td><td class="n">${fmt(T.b)}</td><td class="n">${fmt(T.r)}</td><td class="n">${fmt(vend(T))}</td><td class="n">${pct(T)}</td><td></td></tr>` : "") +
+      (nomesOutros.length ? `<tr class="grupo"><td colspan="7">Clientes, internos e granel (fora do fechamento)</td></tr>` +
+        nomesOutros.map(n => { const o = outros[n]; return `<tr data-linha="${esc(n)}"><td>${nomeCel(n, nLanc(n))}</td><td class="n">${o.s ? fmt(o.s) : "–"}${o.kg ? `<small style="display:block;color:var(--nevoa)">${fmt(o.kg, 1)} kg</small>` : ""}</td><td class="n">${o.b ? fmt(o.b) : "–"}</td><td class="n">${o.r ? fmt(o.r) : "–"}</td><td class="n">–</td><td class="n">–</td><td></td></tr>`; }).join("") : "")
       : `<tr><td class="vazio">Nada lançado em ${P.rot}.</td></tr>`;
-    $$("#h-lista button.lapis-claro").forEach(b => { b.hidden = !pode("expedicao", "editar"); b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]); });
-    $$("#h-lista button.cam-claro").forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r), r.__i != null ? {obj: r, indice: r.__i, tela: "expedicao", depois: () => { Antigo.logCache = {}; }} : null); });
-    $$("#h-lista button.lixo-claro").forEach(b => { b.hidden = !pode("expedicao", "desfazer"); b.onclick = () => cancelarDoResumo(b, doDia[Number(b.dataset.k)], doDia, tot); });
+    $("#h-mot-ajuda").hidden = !verLanc || !doDia.length;
+    // ao tocar no nome: os lançamentos daquela pessoa no período, com fotos, editar e cancelar
+    const acoesX = (r, k) => `<td class="acao">${r.__i != null ? `<button type="button" class="lapis-claro" data-k="${k}" title="Editar" aria-label="Editar: ${esc(descX(r))}"${pode("expedicao", "editar") ? "" : " hidden"}>${LAPIS}</button><button type="button" class="lixo-claro" data-k="${k}" title="Cancelar lançamento" aria-label="Cancelar: ${esc(descX(r))}"${pode("expedicao", "desfazer") ? "" : " hidden"}>${LIXO}</button>` : ""}${r.Fotos ? `<button type="button" class="cam-claro" data-k="${k}" title="Ver fotos" aria-label="Ver fotos: ${esc(descX(r))}">${CAM}</button>` : ""}</td>`;
+    const abrirPessoa = (btn, abrir) => {
+      const tr = btn.closest("tr"), n = btn.dataset.pessoa, prox = tr.nextElementSibling;
+      if (prox && prox.classList.contains("detalhe")) prox.remove();
+      btn.setAttribute("aria-expanded", abrir); tr.classList.toggle("aberto", abrir);
+      if (!abrir) { desenharHoje.abertos.delete("p:" + n); return; }
+      desenharHoje.abertos.add("p:" + n);
+      const lst = doDia.map((r, k) => [r, k]).filter(([r]) => r.Pessoa === n);
+      const d = document.createElement("tr"); d.className = "detalhe";
+      d.innerHTML = `<td colspan="7"><div class="det-cx"><table><tr><th class="acao"><span class="sr">Fotos, editar e cancelar</span></th>${P.umDia ? "" : "<th>Data</th>"}<th>Tipo</th><th>Produto</th><th class="n">Qtd</th><th>Motivo</th></tr>` +
+        lst.map(([r, k]) => `<tr>${acoesX(r, k)}${P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`}<td>${tagTipo(r.Tipo)}${r.Placa ? `<small class="placa">${esc(r.Placa)}</small>` : ""}</td><td>${esc(r.Produto)}</td><td class="n">${fmt(tot(r), grupoProd[r.Produto] === "Granel" ? 1 : 0)}${grupoProd[r.Produto] === "Granel" ? " kg" : ""}</td><td>${esc(r.Motivo || "")}${r["Cliente final"] ? " · " + esc(r["Cliente final"]) : ""}</td></tr>`).join("") + `</table></div></td>`;
+      tr.after(d);
+      $$("button.lapis-claro", d).forEach(b => b.onclick = () => editarDoResumo(doDia[Number(b.dataset.k)]));
+      $$("button.cam-claro", d).forEach(b => b.onclick = () => { const r = doDia[Number(b.dataset.k)]; abrirGaleria(r.Fotos, descX(r), r.__i != null ? {obj: r, indice: r.__i, tela: "expedicao", depois: () => { Antigo.logCache = {}; }} : null); });
+      $$("button.lixo-claro", d).forEach(b => b.onclick = () => cancelarDoResumo(b, doDia[Number(b.dataset.k)], doDia, tot));
+    };
+    $$("#h-mot button.abre-nome").forEach(b => { b.onclick = () => abrirPessoa(b, b.getAttribute("aria-expanded") !== "true"); if (desenharHoje.abertos.has("p:" + b.dataset.pessoa)) abrirPessoa(b, true); });
     const mm = {}, ruins = doDia.filter(r => RUINS.includes(r.Tipo));
     let aval = null, nota = "";
     if (App.store === Antigo) { try { aval = await Antigo.avaliacao(P.de, P.ate); } catch (e) { nota = "Não deu para ler a Avaliação das Devoluções: " + e.message; } }
@@ -3095,8 +3158,12 @@ async function desenharHoje() {
     // % de perda = perda ÷ produção (mesma conta do Painel Produção)
     const pctPerda = (perda, prod, tem) => !tem || !prod ? `<td class="n pp">–</td>` : `<td class="n pp"><b>${fmt(perda / prod * 100, 1)}%</b><small>${fmt(perda)} pct</small></td>`;
     const linha = (rot, e, cls = "", kg = false) => `<tr${cls}><td>${rot}</td><td class="n">${fmt(e.d, kg ? 1 : 0)}</td><td class="n">${fmt(e.n, kg ? 1 : 0)}</td>${pctPerda(e.pd + e.pn, e.d + e.n, e.td || e.tn)}<td class="n"><b>${fmt(e.d + e.n, kg ? 1 : 0)}</b></td></tr>`;
+    const doPer = ps.filter(r => P.dentro(r.Data)).sort((a, b) => a.Data < b.Data ? -1 : a.Data > b.Data ? 1 : (a.Turno === b.Turno ? 0 : a.Turno === "Dia" ? -1 : 1));
+    const nProd = k => doPer.filter(r => r.Produto === k).length;
+    const rotProd = k => `${esc(k)}${grupoProd[k] === "Granel" ? " (kg)" : ""}`;
+    const celProd = k => `<button type="button" class="abre-nome" data-produto="${esc(k)}" aria-expanded="false">${rotProd(k)} <small style="color:var(--nevoa);font-weight:400">${nProd(k)} lanç.</small></button>`;
     $("#h-prod").innerHTML = kp.length ? `<tr><th>Produto</th><th class="n">Dia</th><th class="n">Noite</th><th class="n">Perda</th><th class="n">Total</th></tr>` +
-      kp.map(k => linha(`${esc(k)}${grupoProd[k] === "Granel" ? " (kg)" : ""}`, pd[k], "", grupoProd[k] === "Granel")).join("") +
+      kp.map(k => linha(celProd(k), pd[k], "", grupoProd[k] === "Granel")).join("") +
       (() => { // total geral em pacotes; escama (kg) fica fora porque não soma com pacote
         const pac = kp.filter(k => grupoProd[k] !== "Granel"), temKg = pac.length < kp.length;
         if (!pac.length) return "";
@@ -3104,14 +3171,27 @@ async function desenharHoje() {
         return linha(`Total${temKg ? " (pacotes, sem escama)" : ""}`, T, ' class="total"');
       })()
       : `<tr><td class="vazio">Sem produção lançada em ${P.rot}.</td></tr>`;
-    const doPer = ps.filter(r => P.dentro(r.Data)).sort((a, b) => a.Data < b.Data ? -1 : a.Data > b.Data ? 1 : (a.Turno === b.Turno ? 0 : a.Turno === "Dia" ? -1 : 1));
-    $("#h-prod-lista").innerHTML = doPer.length ? `<tr><th class="acao-1"><span class="sr">Editar</span></th>${P.umDia ? "" : "<th>Data</th>"}<th>Turno</th><th>Produto</th><th class="n">Produção</th><th class="n">Parcial</th><th class="n">Puxada</th><th class="n">Perda</th><th>Lote</th></tr>` +
-      doPer.map((r, k) => { const q = qp(r) || 0, p = perdaDe(r, q), kg = grupoProd[r.Produto] === "Granel";
-        return `<tr><td class="acao-1">${r.__i != null ? `<button type="button" class="lapis-claro" data-pk="${k}" title="Editar" aria-label="Editar: ${esc(descP(r))}">${LAPIS}</button>` : ""}</td>${P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`}<td>${esc(r.Turno || "")}</td><td>${esc(r.Produto)}${kg ? " (kg)" : ""}</td><td class="n">${fmt(q, kg ? 1 : 0)}</td>` +
-          `<td class="n">${calc(r.Parcial) != null ? fmt(calc(r.Parcial)) : "–"}</td><td class="n">${calc(r.Puxada) != null ? fmt(calc(r.Puxada)) : "–"}</td>` +
-          `<td class="n">${p != null && q ? `${fmt(p)} <small style="color:var(--nevoa)">${fmt(p / q * 100, 1)}%</small>` : "–"}</td><td>${esc(r.Lote ?? "")}</td></tr>`; }).join("")
-      : `<tr><td class="vazio">Sem produção lançada em ${P.rot}.</td></tr>`;
-    $$("#h-prod-lista button.lapis-claro").forEach(b => { b.hidden = !pode("producao", "editar"); b.onclick = () => editarProducaoDoResumo(doPer[Number(b.dataset.pk)]); });
+    $("#h-prod-ajuda").hidden = !kp.length;
+    const acoesP = (r, i) => `<td class="acao">${r.__i != null ? `<button type="button" class="lapis-claro" data-pk="${i}" title="Editar" aria-label="Editar: ${esc(descP(r))}"${pode("producao", "editar") ? "" : " hidden"}>${LAPIS}</button><button type="button" class="lixo-claro" data-pk="${i}" title="Cancelar lançamento" aria-label="Cancelar: ${esc(descP(r))}"${pode("producao", "desfazer") ? "" : " hidden"}>${LIXO}</button>` : ""}</td>`;
+    const abrirProduto = (btn, abrir) => {
+      const tr = btn.closest("tr"), k = btn.dataset.produto, prox = tr.nextElementSibling;
+      if (prox && prox.classList.contains("detalhe")) prox.remove();
+      btn.setAttribute("aria-expanded", abrir); tr.classList.toggle("aberto", abrir);
+      if (!abrir) { desenharHoje.abertos.delete("x:" + k); return; }
+      desenharHoje.abertos.add("x:" + k);
+      const kg = grupoProd[k] === "Granel";
+      const lst = doPer.map((r, i) => [r, i]).filter(([r]) => r.Produto === k);
+      const d = document.createElement("tr"); d.className = "detalhe";
+      d.innerHTML = `<td colspan="5"><div class="det-cx"><table><tr><th class="acao"><span class="sr">Editar e cancelar</span></th>${P.umDia ? "" : "<th>Data</th>"}<th>Turno</th><th class="n">Produção</th><th class="n">Parcial<small style="display:block;font-weight:400">puxada</small></th><th class="n">Perda</th><th>Lote</th></tr>` +
+        lst.map(([r, i]) => { const q = qp(r) || 0, p = perdaDe(r, q);
+          return `<tr>${acoesP(r, i)}${P.umDia ? "" : `<td>${esc(isoBR(r.Data).slice(0, 5))}</td>`}<td>${esc(r.Turno || "")}</td><td class="n">${fmt(q, kg ? 1 : 0)}</td>` +
+          `<td class="n">${calc(r.Parcial) != null ? fmt(calc(r.Parcial)) : "–"}${calc(r.Puxada) != null ? `<small style="display:block;color:var(--nevoa)">${fmt(calc(r.Puxada))}</small>` : ""}</td>` +
+          `<td class="n">${p != null && q ? `${fmt(p)}<small style="display:block;color:var(--nevoa)">${fmt(p / q * 100, 1)}%</small>` : "–"}</td><td>${esc(r.Lote ?? "")}</td></tr>`; }).join("") + `</table></div></td>`;
+      tr.after(d);
+      $$("button.lapis-claro", d).forEach(b => b.onclick = () => editarProducaoDoResumo(doPer[Number(b.dataset.pk)]));
+      $$("button.lixo-claro", d).forEach(b => b.onclick = () => cancelarProducaoDoResumo(b, doPer[Number(b.dataset.pk)]));
+    };
+    $$("#h-prod button.abre-nome").forEach(b => { b.onclick = () => abrirProduto(b, b.getAttribute("aria-expanded") !== "true"); if (desenharHoje.abertos.has("x:" + b.dataset.produto)) abrirProduto(b, true); });
     $("#h-info").textContent = `${P.umDia ? "" : P.rot + " · "}${doDia.length} lançamento(s) · ${App.store.nome}`;
   } catch (e) { $("#h-info").textContent = ""; toast(e.message, {erro: true}); }
   finally { tela.classList.remove("carregando"); }
@@ -3187,8 +3267,8 @@ const TELAS_ACESSO = [
   {id: "hoje", nome: "Resumo do dia", acoes: ["ver"]},
 ];
 /* partes do Resumo do dia que cada perfil vê */
-const PARTES_RESUMO = [["estoque", "Estoque"], ["fechamento", "Fechamento dos motoristas"], ["lancexp", "Lançamentos de expedição"],
-  ["motivos", "Volta ruim e perdas por motivo"], ["producao", "Produção e lançamentos de produção"], ["maquinas", "Leitura das máquinas"]];
+const PARTES_RESUMO = [["estoque", "Estoque"], ["fechamento", "Fechamento dos motoristas"], ["lancexp", "Lançamentos de expedição (ao tocar no motorista)"],
+  ["motivos", "Volta ruim e perdas por motivo"], ["producao", "Produção (com os lançamentos ao tocar no produto)"], ["maquinas", "Leitura das máquinas"]];
 const NOMES_ACOES = {ver: "Ver", lancar: "Lançar", editar: "Editar", desfazer: "Desfazer", cadastros: "Cadastrar e mover pessoas"};
 const permTudo = () => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, true]))]));
 const permCom = (telas, acoes) => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, telas.includes(t.id) && acoes.includes(a)]))]));
