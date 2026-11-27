@@ -492,6 +492,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
         <div class="contador" data-campo="pacote"><label for="x-pacote" id="x-pacote-rot">Pacote</label><button type="button" data-d="-1" aria-label="Menos um pacote">−</button><input id="x-pacote" inputmode="decimal" value="0"><button type="button" data-d="1" aria-label="Mais um pacote">+</button></div>
       </div>
       <div class="fech" id="x-fech" hidden aria-live="polite"></div>
+      <div class="fech" id="x-consig" hidden aria-live="polite"></div>
       <div class="mostrador" aria-live="polite"><span class="num zero" id="x-total">0</span><span class="uni" id="x-uni">pacotes</span><span class="conta" id="x-conta"></span></div>
       <button type="button" class="btn-incluir" id="x-incluir" disabled>Incluir no pedido</button>
       <div class="pedido" id="x-pedido" hidden aria-live="polite"><h3 id="x-ped-tit">Pedido</h3><div id="x-ped-lista"></div></div>
@@ -658,6 +659,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
       <div class="bloco" data-parte="fechamento"><div class="rot">Fechamento dos motoristas <span id="h-info"></span></div><p class="ajuda-maq" id="h-mot-ajuda">Toque no nome para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-mot"></table></div></div>
     </div>
     <div class="coluna">
+      <div class="bloco" data-parte="consignado" id="h-consig-bloco" hidden><div class="rot">Estoque com clientes consignados <span id="h-consig-info"></span></div><div class="rolagem" style="max-height:none"><table class="dados" id="h-consig"></table></div></div>
       <div class="bloco" data-parte="motivos"><div class="rot">Volta ruim e perdas por motivo (inclui trocas)</div><div class="rolagem"><table class="dados" id="h-motivos"></table></div><p class="nota" id="h-motivos-nota" hidden></p></div>
       <div class="bloco" data-parte="producao"><div class="rot">Produção <span>perda em % da produção</span></div><p class="ajuda-maq" id="h-prod-ajuda">Toque no produto para ver, editar ou cancelar os lançamentos.</p><div class="rolagem" style="max-height:none"><table class="dados abre" id="h-prod"></table></div></div>
       <div class="bloco" data-parte="maquinas"><div class="rot">Leitura das máquinas <span id="h-maq-info"></span></div><p class="ajuda-maq">Num dia só, toque no horário para editar.</p><div class="rolagem"><table class="dados" id="h-maq"></table></div></div>
@@ -794,6 +796,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 <div id="menu-pessoa" class="menu-pessoa" hidden role="dialog" aria-modal="false" aria-labelledby="mp-nome">
   <div class="mp-cab"><b id="mp-nome"></b><span id="mp-sub"></span></div>
   <button type="button" id="mp-tela"></button>
+  <button type="button" id="mp-consig"></button>
   <button type="button" id="mp-ativo"></button>
   <button type="button" id="mp-fechar" class="mp-fechar">Cancelar</button>
 </div>
@@ -1308,9 +1311,18 @@ const Antigo = {
   },
 
   /* ---------- interface usada pelo site ---------- */
-  async cadastros() { return JSON.parse(JSON.stringify(SCHEMA.cad)); },
+  async cadastros() {
+    const c = JSON.parse(JSON.stringify(SCHEMA.cad));
+    let alt = LS.get("gm_pessoas_alt", {});
+    if (PROXY() && Acesso.sessao) { try { alt = await Acesso.api("GET", "/pessoas"); LS.set("gm_pessoas_alt", alt); } catch {} }
+    c.tbPessoas = c.tbPessoas.map(p => { const a = alt[normNome(p.Nome)] || alt[p.Nome]; return a ? {...p, ...a} : p; });
+    return c;
+  },
   async pessoas() { return (await this.cadastros()).tbPessoas; },
-  async alterarPessoa() { throw new Error("No modelo antigo os nomes ficam na aba 1 do arquivo do mês; mude lá."); },
+  async alterarPessoa(nome, mud) {
+    if (!PROXY()) throw new Error("No modelo antigo os nomes ficam na aba 1 do arquivo do mês; mude lá.");
+    const r = await Acesso.api("POST", "/pessoas", {nome, mud}); LS.set("gm_pessoas_alt", r.alt || {});
+  },
   dias(de, ate) { const o = []; for (let s = isoToSerial(de); s <= isoToSerial(ate); s++) o.push(serialToISO(s)); return o; },
   periodo: null,
   /* período lido: o do Resumo quando ele pede; senão, para expedição o dia da carga e para o resto o mês até hoje */
@@ -2011,7 +2023,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127115803";
+const VERSAO = "20261127121319";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -2077,6 +2089,26 @@ async function cancelarDoResumo(b, r, doDia, tot) {
     if (Carga.dia === r.Data) Carga.carregar(r.Data, true);
     await desenharHoje();
   } catch (e) { toast(e.message, {erro: true, ms: 9000}); b.disabled = false; }
+}
+/* Resumo: o que está com cada cliente consignado (saldo antes do período + saiu − voltou) */
+async function desenharConsignado(P) {
+  const bloco = $("#h-consig-bloco"), cs = Consig.clientes();
+  bloco.hidden = !cs.length || !pode("hoje", "consignado");
+  if (bloco.hidden) return;
+  $("#h-consig-info").textContent = "carregando…";
+  const chave = P.de + "|" + P.ate; bloco.dataset.chave = chave;
+  try {
+    const ss = (await Consig.saldos(P.de, P.ate)).filter(e => e.antes || e.saiu || e.voltou);
+    if (bloco.dataset.chave !== chave) return;
+    const kg = k => (produtoDe(k) || {}).Unidade === "kg";
+    const ordem = cs.map(c => c.Nome);
+    ss.sort((a, b) => ordem.indexOf(a.cliente) - ordem.indexOf(b.cliente) || b.saldo - a.saldo);
+    const sem = cs.filter(c => !ss.some(e => e.cliente === c.Nome));
+    $("#h-consig").innerHTML = `<tr><th>Cliente</th><th>Produto</th><th class="n">${P.umDia ? "Antes do dia" : "Antes"}</th><th class="n">Saiu</th><th class="n">Voltou</th><th class="n">Com o cliente</th></tr>` +
+      ss.map((e, i) => `<tr><td>${i && ss[i - 1].cliente === e.cliente ? "" : `<b>${esc(e.cliente)}</b>`}</td><td>${esc(e.produto)}</td><td class="n">${fmt(e.antes, kg(e.produto) ? 1 : 0)}</td><td class="n">${e.saiu ? fmt(e.saiu, kg(e.produto) ? 1 : 0) : "–"}</td><td class="n">${e.voltou ? fmt(e.voltou, kg(e.produto) ? 1 : 0) : "–"}</td><td class="n"><b${e.saldo < 0 ? ' style="color:var(--erro)"' : ""}>${fmt(e.saldo, kg(e.produto) ? 1 : 0)}</b></td></tr>`).join("") +
+      sem.map(c => `<tr><td><b>${esc(c.Nome)}</b></td><td colspan="5" style="color:var(--nevoa)">Nada com o cliente desde ${isoBR(c["Consignado desde"])}.</td></tr>`).join("");
+    $("#h-consig-info").textContent = `desde ${isoBR(cs.map(c => c["Consignado desde"]).sort()[0])}`;
+  } catch (e) { if (bloco.dataset.chave === chave) { $("#h-consig-info").textContent = ""; $("#h-consig").innerHTML = `<tr><td class="vazio">Não deu para ler: ${esc(e.message)}</td></tr>`; } }
 }
 /* Cancela um lançamento de produção direto do Resumo do dia (dois toques no lixo). */
 async function cancelarProducaoDoResumo(b, r) {
@@ -2244,7 +2276,7 @@ function desenharPessoas() {
   const nomesGrupo = {Motorista: "Motoristas", Cliente: "Clientes", Interno: "Internos"};
   const ordem = {Motoristas: 0, Clientes: 1, Internos: 2, "Pouco usados": 8, Inativos: 9};
   const busca = $("#x-busca").value.trim();
-  const todas = (App.cad.tbPessoas || []).filter(p => p.Nome).map(p => ({nome: p.Nome, cod: p["Código"], tipo: p.Tipo, tela: p["Na tela"] !== "Não", ativa: ativo(p)}));
+  const todas = (App.cad.tbPessoas || []).filter(p => p.Nome).map(p => ({nome: p.Nome, cod: p["Código"], tipo: p.Tipo, tela: p["Na tela"] !== "Não", ativa: ativo(p), consig: ehConsignado(p)}));
   const escondida = p => p.ativa && !p.tela && p.nome !== X.pessoa;
   const ocultas = todas.filter(escondida), inativas = todas.filter(p => !p.ativa);
   const pes = todas.filter(p => p.ativa ? (busca || X.verOutros || !escondida(p)) : (busca || X.verInativos))
@@ -2253,7 +2285,7 @@ function desenharPessoas() {
   fichas($("#x-pessoas"), pes, p => {
     if (!p.ativa) { marcarFicha($("#x-pessoas"), X.pessoa || ""); abrirMenuPessoa(p.nome, $(`#x-pessoas .ficha[data-valor="${CSS.escape(p.nome)}"]`)); return; }
     X.pessoa = p.nome; $("#x-pessoa-sel").textContent = ""; $("#x-placa").value = LS.get("gm_placas", {})[p.nome] || ""; atualizarX();
-  }, {grupo: p => p.grupo, sub: p => !p.ativa ? "inativo · toque para ativar" : p.cod ? `código ${p.cod}` : "", filtro: busca});
+  }, {grupo: p => p.grupo, sub: p => !p.ativa ? "inativo · toque para ativar" : [p.consig ? "consignado" : "", p.cod ? `código ${p.cod}` : ""].filter(Boolean).join(" · "), filtro: busca});
   const vz = $(".vazio", $("#x-pessoas")); if (vz) vz.textContent = "Ninguém com esse nome ou código. Toque em + Novo para cadastrar.";
   $$("#x-pessoas .ficha").forEach(b => {
     const p = pes.find(x => x.nome === b.dataset.valor); if (!p) return;
@@ -2288,6 +2320,37 @@ function segurar(el, aoSegurar) {
 /* ----- Menu da pessoa: mover para pouco usados / mostrar na tela / desativar / ativar ----- */
 const MP = {nome: null, volta: null};
 function pessoaDe(nome) { return (App.cad.tbPessoas || []).find(p => p.Nome === nome); }
+const ehConsignado = p => !!(p && p.Consignado === "Sim" && p["Consignado desde"]);
+/* Estoque com clientes consignados: saldo = saídas − voltas (boa e ruim) desde o dia em que o cliente foi marcado */
+const Consig = {
+  cache: {},
+  clientes() { return (App.cad.tbPessoas || []).filter(ehConsignado); },
+  // lançamentos de expedição dos consignados de "de" até "ate" (lidos uma vez e guardados por 2 min)
+  async linhas(de, ate) {
+    if (!de || de > ate) return [];
+    const k = de + "|" + ate, c = this.cache[k];
+    if (c && Date.now() - c.em < 120000) return c.p;
+    const p = (App.store === Antigo ? Antigo.ler("tbExpedicao", de, ate) : App.store.colunas("tbExpedicao", ["Data", "Pessoa", "Produto", "Tipo", "Pallet", "Fileira", "Pacote", "Total pacotes", "Motivo"]))
+      .then(rs => rs.filter(r => r.Data >= de && r.Data <= ate));
+    this.cache[k] = {p, em: Date.now()}; p.catch(() => delete this.cache[k]);
+    return p;
+  },
+  sinal(r) { return r.Tipo === "Saída" ? 1 : VOLTAS.includes(r.Tipo) ? -1 : 0; },
+  // saldo por cliente e produto ao fim de "ate"; com "de", separa o que veio antes do período
+  async saldos(de, ate) {
+    const cs = this.clientes(); if (!cs.length) return [];
+    const desde = cs.map(p => p["Consignado desde"]).sort()[0];
+    const rs = await this.linhas(desde, ate), out = {};
+    for (const r of rs) {
+      const p = cs.find(c => c.Nome === r.Pessoa); if (!p || r.Data < p["Consignado desde"]) continue;
+      const sn = this.sinal(r); if (!sn) continue;
+      const e = (out[r.Pessoa + "|" + r.Produto] ||= {cliente: r.Pessoa, produto: r.Produto, antes: 0, saiu: 0, voltou: 0});
+      const q = totalLinha(r);
+      if (de && r.Data < de) e.antes += sn * q; else if (sn > 0) e.saiu += q; else e.voltou += q;
+    }
+    return Object.values(out).map(e => ({...e, saldo: e.antes + e.saiu - e.voltou}));
+  },
+};
 function abrirMenuPessoa(nome, ancora) {
   if (!pode("expedicao", "cadastros")) return;
   const p = pessoaDe(nome); if (!p) return;
@@ -2295,10 +2358,13 @@ function abrirMenuPessoa(nome, ancora) {
   MP.nome = nome; MP.volta = ancora || null;
   const ativa = ativo(p), tela = p["Na tela"] !== "Não";
   $("#mp-nome").textContent = nome;
-  $("#mp-sub").textContent = `${p.Tipo || ""}${p["Código"] ? " · código " + p["Código"] : ""}${!ativa ? " · inativo" : !tela ? " · pouco usado" : ""}`;
+  $("#mp-sub").textContent = `${p.Tipo || ""}${p["Código"] ? " · código " + p["Código"] : ""}${ehConsignado(p) ? " · consignado desde " + isoBR(p["Consignado desde"]) : ""}${!ativa ? " · inativo" : !tela ? " · pouco usado" : ""}`;
   const bt = $("#mp-tela"); bt.hidden = !ativa;
   bt.textContent = tela ? "Mover para pouco usados" : "Mostrar sempre na tela";
   bt.onclick = () => mudarPessoa(nome, {"Na tela": tela ? "Não" : "Sim"});
+  const bc = $("#mp-consig"), consig = ehConsignado(p); bc.hidden = !ativa || p.Tipo === "Motorista";
+  bc.textContent = consig ? "Tirar de consignado" : "Marcar como consignado";
+  bc.onclick = () => mudarPessoa(nome, consig ? {Consignado: "Não"} : {Consignado: "Sim", "Consignado desde": p["Consignado desde"] || hojeISO()});
   const ba = $("#mp-ativo"); ba.textContent = ativa ? "Desativar" : "Ativar"; ba.classList.toggle("perigo", ativa);
   ba.onclick = () => mudarPessoa(nome, ativa ? {Ativo: "Não"} : {Ativo: "Sim", "Na tela": "Sim"});
   const m = $("#menu-pessoa"); m.hidden = false;
@@ -2320,13 +2386,16 @@ async function mudarPessoa(nome, mud, {desfazendo = false} = {}) {
   $$("#menu-pessoa button").forEach(b => b.disabled = true);
   try {
     await App.store.alterarPessoa(nome, mud);
-    Hist.registrar(mud.Ativo === "Não" ? "Desativou pessoa" : mud.Ativo === "Sim" ? "Ativou pessoa" : "Mudou pessoa", "cadastro", nome, Object.entries(mud).map(([k, v]) => `${k}: ${v}`).join(", "));
+    Hist.registrar(mud.Consignado === "Sim" ? "Marcou consignado" : mud.Consignado === "Não" ? "Tirou de consignado" : mud.Ativo === "Não" ? "Desativou pessoa" : mud.Ativo === "Sim" ? "Ativou pessoa" : "Mudou pessoa", "cadastro", nome, Object.entries(mud).map(([k, v]) => `${k}: ${v}`).join(", "));
     Object.assign(p, mud);
     if (App.modo === "planilha") LS.set("gm_cad_cache", App.cad);
     if (mud.Ativo === "Não" && X.pessoa === nome) { X.pessoa = null; atualizarX(); }
     $("#menu-pessoa").hidden = true; MP.nome = null;
     desenharPessoas();
-    const msg = mud.Ativo === "Não" ? `${nome} desativado: não aparece mais para lançar (está em Inativos).`
+    Consig.cache = {}; atualizarX();
+    const msg = mud.Consignado === "Sim" ? `${nome} agora é consignado: saídas e voltas dele a partir de ${isoBR(mud["Consignado desde"])} formam o estoque com o cliente (Resumo do dia).`
+      : mud.Consignado === "Não" ? `${nome} não é mais consignado.`
+      : mud.Ativo === "Não" ? `${nome} desativado: não aparece mais para lançar (está em Inativos).`
       : mud.Ativo === "Sim" ? `${nome} ativado de novo.`
       : mud["Na tela"] === "Não" ? `${nome} foi para pouco usados.` : `${nome} agora aparece sempre na tela.`;
     if (desfazendo) toast("Desfeito.");
@@ -2397,6 +2466,7 @@ function atualizarX() {
     const f0 = fechamento(ed.Pessoa, ed.Produto);
     if (f0.carregou < f0.voltas) bloqueio = `Sem esta saída, ${ed.Pessoa} fica com carga de ${fmt(f0.carregou)} de ${ed.Produto}, menos que as voltas já lançadas (${fmt(f0.voltas)}).`;
   }
+  mostrarConsigX();
   const pl = normPlaca($("#x-placa").value);
   if (!bloqueio && pl && !placaOk(pl)) bloqueio = "Placa incompleta: use o formato ABC1D23 ou ABC1234.";
   X.total = tot;
@@ -2422,6 +2492,27 @@ function atualizarX() {
   if (!X.enviando) $("#x-lancar").textContent = rot;
   $("#x-lancar").dataset.curto = editando ? "Salvar" : total > 1 ? `Lançar (${total})` : "Lançar";
   desenharPedido();
+}
+/* cliente consignado escolhido: mostra o que está com ele (até ontem, mais o lançado hoje neste dia) */
+function mostrarConsigX() {
+  const box = $("#x-consig"), p = pessoaDe(X.pessoa), dia = $("#x-data").value;
+  if (!ehConsignado(p) || !dia || dia < p["Consignado desde"]) { box.hidden = true; return; }
+  box.hidden = false;
+  const chave = X.pessoa + "|" + dia; box.dataset.chave = chave;
+  const ontem = serialToISO(isoToSerial(dia) - 1);
+  Consig.saldos(null, ontem).then(ss => {
+    if (box.dataset.chave !== chave) return;
+    const pend = Fila.itens().filter(i => i.t === "tbExpedicao").map(i => i.obj).filter(o => o.Data === Carga.dia);
+    const hoje = Carga.dia === dia ? [...Carga.linhas, ...Carga.sessao, ...pend].filter(r => r.Pessoa === X.pessoa) : [];
+    const sal = {};
+    ss.filter(e => e.cliente === X.pessoa).forEach(e => sal[e.produto] = e.saldo);
+    hoje.forEach(r => { const sn = Consig.sinal(r); if (sn) sal[r.Produto] = (sal[r.Produto] || 0) + sn * totalLinha(r); });
+    const ks = Object.keys(sal).filter(k => sal[k] || k === X.produto).sort((a, b) => (b === X.produto) - (a === X.produto) || sal[b] - sal[a]);
+    if (X.produto && !ks.includes(X.produto)) ks.unshift(X.produto);
+    box.className = "fech";
+    box.innerHTML = `<div class="lin"><span><b>${esc(X.pessoa)}</b> é consignado. Está com ele:</span><b></b></div>` +
+      (ks.length ? ks.map(k => `<div class="lin${k === X.produto ? " pode" : ""}"><span>${esc(k)}</span><b>${fmt(sal[k] || 0, (produtoDe(k) || {}).Unidade === "kg" ? 1 : 0)}</b></div>`).join("") : `<div class="lin"><span>Nada no momento.</span><b></b></div>`);
+  }).catch(() => { if (box.dataset.chave === chave) box.innerHTML = `<span class="nota">Não deu para ler o estoque consignado agora.</span>`; });
 }
 function descItemX(obj, nFotos) {
   const p = produtoDe(obj.Produto), kg = p && p.Unidade === "kg";
@@ -3077,7 +3168,7 @@ async function desenharHoje() {
   desenharHoje._t = setTimeout(() => tela.classList.remove("carregando"), 120000);
   if (!P.de) return;
   Antigo.periodo = {de: P.de, ate: P.ate};
-  desenharEstoque(P); desenharMaquinas(P);
+  Consig.cache = {}; desenharEstoque(P); desenharMaquinas(P); desenharConsignado(P);
   try {
     const [xs, ps] = await Promise.all([
       App.store.colunas("tbExpedicao", ["Data", "Pessoa", "Produto", "Tipo", "Pallet", "Fileira", "Pacote", "Motivo", "Cliente final", "Lote", "Observação", "Fotos", "Total pacotes"]),
@@ -3275,7 +3366,7 @@ const TELAS_ACESSO = [
 ];
 /* partes do Resumo do dia que cada perfil vê */
 const PARTES_RESUMO = [["estoque", "Estoque"], ["fechamento", "Fechamento dos motoristas"], ["lancexp", "Lançamentos de expedição (ao tocar no motorista)"],
-  ["motivos", "Volta ruim e perdas por motivo"], ["producao", "Produção (com os lançamentos ao tocar no produto)"], ["maquinas", "Leitura das máquinas"]];
+  ["consignado", "Estoque com clientes consignados"], ["motivos", "Volta ruim e perdas por motivo"], ["producao", "Produção (com os lançamentos ao tocar no produto)"], ["maquinas", "Leitura das máquinas"]];
 const NOMES_ACOES = {ver: "Ver", lancar: "Lançar", editar: "Editar", desfazer: "Desfazer", cadastros: "Cadastrar e mover pessoas"};
 const permTudo = () => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, true]))]));
 const permCom = (telas, acoes) => Object.fromEntries(TELAS_ACESSO.map(t => [t.id, Object.fromEntries(t.acoes.map(a => [a, telas.includes(t.id) && acoes.includes(a)]))]));
@@ -3505,7 +3596,7 @@ function aplicarAcesso() {
   $("#usuario-nome").title = Acesso.sessao ? `${Acesso.sessao.nome} (${Acesso.sessao.login})` : "";
   $("#usuario").hidden = !Acesso.sessao;
   $("#x-novo-btn").hidden = !pode("expedicao", "cadastros");
-  $$("#t-hoje [data-parte]").forEach(b => b.hidden = !pode("hoje", b.dataset.parte));
+  $$("#t-hoje [data-parte]").forEach(b => b.hidden = !pode("hoje", b.dataset.parte) || (b.id === "h-consig-bloco" && !Consig.clientes().length));
   document.body.classList.toggle("so-ver-expedicao", !pode("expedicao", "lancar"));
   Object.keys(ultimos).forEach(el => desenharUltimos(el));
   ["atualizarX", "atualizarP", "atualizarE", "atualizarL", "atualizarA"].forEach(f => { try { window[f](); } catch {} });
