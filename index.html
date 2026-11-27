@@ -338,6 +338,9 @@ code{background:var(--ciano-claro);padding:1px 6px;border-radius:4px;font-size:1
   small.placa { display: block; font-size: 11px; letter-spacing: .04em; opacity: .7; }
 /* entrada e administração */
 body.trancado{overflow:hidden}
+.abrindo{position:fixed;inset:0;z-index:101;background:var(--aco);color:#fff;display:grid;place-content:center;justify-items:center;gap:14px;font-size:15px}
+.abrindo .marca{color:#fff}.abrindo .marca small{color:#A9C4D4}.abrindo span{color:#A9C4D4}
+.abrindo[hidden]{display:none}
 .entrada{position:fixed;inset:0;z-index:100;background:var(--aco);display:grid;place-items:center;padding:20px}
 .entrada-cx{background:#fff;border-radius:var(--r-m);padding:28px 26px;width:min(400px,100%);box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .entrada .marca{color:var(--aco);margin-bottom:18px}
@@ -383,6 +386,7 @@ p.nota{color:var(--nevoa);font-size:13px;margin:10px 0 0}
 </style>
 </head>
 <body>
+<div id="abrindo" class="abrindo" role="status"><div class="marca">Gelo Minerale<small>Lançamentos da fábrica</small></div><span>Abrindo…</span></div>
 <header class="top">
   <div class="marca">Gelo Minerale<small>Lançamentos da fábrica</small></div>
   <nav class="abas" aria-label="Telas">
@@ -907,9 +911,14 @@ const fmtHM = min => min == null ? "0:00" : `${Math.floor(min / 60)}:${String(mi
 const isoBR = iso => iso ? iso.split("-").reverse().join("/") : "";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const LS = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  // a sessão do usuário fica só nesta aba: quem abre o link de novo começa pelo login
+  _onde(k) { return k === "gm_sessao" ? sessionStorage : localStorage; },
+  get(k, d) { try { const v = this._onde(k).getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { this._onde(k).setItem(k, JSON.stringify(v)); } catch {} },
 };
+try { localStorage.removeItem("gm_sessao"); } catch {}
+// endereço sempre limpo (sem ?v=...), para todo mundo usar o mesmo link
+if (/[?&]v=/.test(location.search)) try { history.replaceState(null, "", location.pathname + location.hash); } catch {}
 /* configuração já gravada na versão publicada (GitHub Pages): ninguém precisa preencher Configurar */
 const CFG_PADRAO = {"clientId":"5a64fb8e-2b72-49bb-92f3-70730ed396c4","tenantId":"1759750e-d20f-4cc8-a086-cc2cb9044ae9","formato":"antigo","pasta":"https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQCxelOZA4aPTKrv2zytzX81AVXWZ1QYVsK_T0LBh6QdSfw?e=f7T1oG","avaliacao":"https://gelominerale-my.sharepoint.com/:x:/g/personal/caio_martins_gelominerale_onmicrosoft_com/IQDL3kAVlNPKQaNqp1jiDA3XAUEswlcxk3ESq25QfY-1-wA?e=CCCGw6","proxy":"https://gelo-lancamentos.gelominerale.workers.dev"};
 if (CFG_PADRAO) {
@@ -1975,7 +1984,7 @@ const ED = {
   "#l-ultimos": {aviso: "#l-editando", btn: "#l-lancar", rotulo: "Lançar horário", abrir: o => abrirL(o), limpar: () => limparL(), atualizar: () => atualizarL()},
 };
 /* Versão nova publicada: o navegador guarda a página por até 10 min; o site confere sozinho e recarrega quando ninguém está no meio de um lançamento */
-const VERSAO = "20261127112835";
+const VERSAO = "20261127113641";
 function ocupadoAgora() {
   if (X.pedido.length || X.fotos.length || X.enviando || X.editando || num($("#x-pacote").value) || num($("#x-pallet").value) || num($("#x-fileira").value)) return true;
   return [...document.querySelectorAll("dialog")].some(d => d.open);
@@ -3314,7 +3323,7 @@ const TELA_DA_LISTA = {"#x-ultimos": "expedicao", "#p-ultimos": "producao", "#e-
 
 /* ---------- tela de entrada ---------- */
 function mostrarEntrada(modo, msg = "") {
-  const t = $("#entrada"); t.hidden = false; document.body.classList.add("trancado");
+  const t = $("#entrada"); t.hidden = false; document.body.classList.add("trancado"); tirarCortina();
   $("#en-msg").textContent = msg;
   $("#en-ms").hidden = modo !== "microsoft"; $("#en-form").hidden = modo === "microsoft";
   $("#en-primeiro").hidden = modo !== "primeiro"; $("#en-nome-campo").hidden = modo !== "primeiro"; $("#en-senha2-campo").hidden = modo !== "primeiro";
@@ -3323,6 +3332,7 @@ function mostrarEntrada(modo, msg = "") {
   t.dataset.modo = modo;
   setTimeout(() => { const f = modo === "primeiro" ? $("#en-nome") : $("#en-login"); if (f && !f.closest("[hidden]")) f.focus(); }, 50);
 }
+function tirarCortina() { const c = $("#abrindo"); if (c) c.hidden = true; }
 function esconderEntrada() { $("#entrada").hidden = true; document.body.classList.remove("trancado"); }
 let entradaOk = null;
 async function enviarEntrada(e) {
@@ -3396,6 +3406,7 @@ async function ligarMicrosoft(caixa, aoTerminar) {
 
 /* ---------- aplica as permissões na tela ---------- */
 function aplicarAcesso() {
+  tirarCortina();
   const adm = Acesso.admin();
   $$("nav.abas button").forEach(b => {
     const t = b.dataset.tela;
